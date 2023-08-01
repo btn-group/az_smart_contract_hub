@@ -2,122 +2,158 @@
 
 #[ink::contract]
 mod az_smart_contract_metadata_hub {
-    #[ink(storage)]
-    pub struct AzSmartContractMetadataHub {
-        value: bool,
+    use ink::storage::Mapping;
+
+    // === ENUMS ===
+    #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub enum AzSmartContractMetadataHubError {
+        RecordsLimitReached,
     }
 
+    // === EVENTS (To be used with Subsquid) ===
+
+    // === STRUCTS ===
+    #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
+    #[cfg_attr(
+        feature = "std",
+        derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+    )]
+    pub struct Record {
+        id: u32,
+        smart_contract_address: AccountId,
+        likes: u16,
+        dislikes: u16,
+    }
+
+    #[derive(Debug, Default)]
+    #[ink::storage_item]
+    pub struct Records {
+        values: Mapping<u32, Record>,
+        length: u32,
+    }
+    impl Records {
+        //     pub fn index(&self, page: u32, size: u16) -> Vec<Record> {
+        //         let mut records: Vec<Record> = vec![];
+        //         // When there's no records
+        //         if self.length == 0 {
+        //             return records;
+        //         }
+
+        //         let records_to_skip: Option<u32> = if page == 0 {
+        //             Some(0)
+        //         } else {
+        //             page.checked_mul(size.into())
+        //         };
+        //         let starting_index: u32;
+        //         let ending_index: u32;
+        //         // When the records to skip is greater than max possible
+        //         if let Some(records_to_skip_unwrapped) = records_to_skip {
+        //             let ending_index_wrapped: Option<u32> =
+        //                 self.length.checked_sub(records_to_skip_unwrapped);
+        //             // When records to skip is greater than total number of records
+        //             if ending_index_wrapped.is_none() {
+        //                 return records;
+        //             }
+        //             ending_index = ending_index_wrapped.unwrap();
+        //             starting_index = ending_index.saturating_sub(size.into());
+        //         } else {
+        //             return records;
+        //         }
+        //         for i in (starting_index..=ending_index).rev() {
+        //             records.push(self.values.get(i).unwrap())
+        //         }
+        //         records
+        //     }
+
+        pub fn create(
+            &mut self,
+            smart_contract_address: AccountId,
+        ) -> Result<Record, AzSmartContractMetadataHubError> {
+            if self.length == u32::MAX {
+                return Err(AzSmartContractMetadataHubError::RecordsLimitReached);
+            }
+
+            let record: Record = Record {
+                id: self.length,
+                smart_contract_address,
+                likes: 1,
+                dislikes: 0,
+            };
+            self.values.insert(self.length, &record);
+            self.length += 1;
+
+            Ok(record)
+        }
+
+        //     pub fn update(&mut self, value: &Record) {
+        //         self.values.insert(value.id, value);
+        //     }
+    }
+
+    // === CONTRACT ===
+    #[ink(storage)]
+    #[derive(Default)]
+    pub struct AzSmartContractMetadataHub {
+        records: Records,
+    }
     impl AzSmartContractMetadataHub {
         #[ink(constructor)]
-        pub fn new(init_value: bool) -> Self {
-            Self { value: init_value }
-        }
-
-        #[ink(constructor)]
-        pub fn default() -> Self {
-            Self::new(Default::default())
-        }
-
-        #[ink(message)]
-        pub fn flip(&mut self) {
-            self.value = !self.value;
+        pub fn new() -> Self {
+            Self {
+                records: Records {
+                    values: Mapping::default(),
+                    length: 0,
+                },
+            }
         }
 
         #[ink(message)]
-        pub fn get(&self) -> bool {
-            self.value
+        pub fn show(&self, id: u32) -> Option<Record> {
+            self.records.values.get(id)
         }
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
+        use ink::env::{
+            test::{default_accounts, set_caller, DefaultAccounts},
+            DefaultEnvironment,
+        };
+
+        // === HELPERS ===
+        fn init() -> (
+            DefaultAccounts<DefaultEnvironment>,
+            AzSmartContractMetadataHub,
+        ) {
+            let accounts = default_accounts();
+            set_caller::<DefaultEnvironment>(accounts.bob);
+            let az_smart_contract_metadata_hub = AzSmartContractMetadataHub::new();
+            (accounts, az_smart_contract_metadata_hub)
+        }
+
+        // === TESTS ===
+        #[ink::test]
+        fn test_new() {
+            let (_accounts, az_smart_contract_metadata_hub) = init();
+            // * it sets records
+            assert_eq!(az_smart_contract_metadata_hub.records.length, 0);
+        }
 
         #[ink::test]
-        fn default_works() {
-            let az_smart_contract_metadata_hub = AzSmartContractMetadataHub::default();
-            assert_eq!(az_smart_contract_metadata_hub.get(), false);
-        }
-
-        #[ink::test]
-        fn it_works() {
-            let mut az_smart_contract_metadata_hub = AzSmartContractMetadataHub::new(false);
-            assert_eq!(az_smart_contract_metadata_hub.get(), false);
-            az_smart_contract_metadata_hub.flip();
-            assert_eq!(az_smart_contract_metadata_hub.get(), true);
-        }
-    }
-
-
-    /// This is how you'd write end-to-end (E2E) or integration tests for ink! contracts.
-    ///
-    /// When running these you need to make sure that you:
-    /// - Compile the tests with the `e2e-tests` feature flag enabled (`--features e2e-tests`)
-    /// - Are running a Substrate node which contains `pallet-contracts` in the background
-    #[cfg(all(test, feature = "e2e-tests"))]
-    mod e2e_tests {
-        /// Imports all the definitions from the outer scope so we can use them here.
-        use super::*;
-
-        /// A helper function used for calling contract messages.
-        use ink_e2e::build_message;
-
-        /// The End-to-End test `Result` type.
-        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-        /// We test that we can upload and instantiate the contract using its default constructor.
-        #[ink_e2e::test]
-        async fn default_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
-            // Given
-            let constructor = AzSmartContractMetadataHubRef::default();
-
-            // When
-            let contract_account_id = client
-                .instantiate("az_smart_contract_metadata_hub", &ink_e2e::alice(), constructor, 0, None)
-                .await
-                .expect("instantiate failed")
-                .account_id;
-
-            // Then
-            let get = build_message::<AzSmartContractMetadataHubRef>(contract_account_id.clone())
-                .call(|az_smart_contract_metadata_hub| az_smart_contract_metadata_hub.get());
-            let get_result = client.call_dry_run(&ink_e2e::alice(), &get, 0, None).await;
-            assert!(matches!(get_result.return_value(), false));
-
-            Ok(())
-        }
-
-        /// We test that we can read and write a value from the on-chain contract contract.
-        #[ink_e2e::test]
-        async fn it_works(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
-            // Given
-            let constructor = AzSmartContractMetadataHubRef::new(false);
-            let contract_account_id = client
-                .instantiate("az_smart_contract_metadata_hub", &ink_e2e::bob(), constructor, 0, None)
-                .await
-                .expect("instantiate failed")
-                .account_id;
-
-            let get = build_message::<AzSmartContractMetadataHubRef>(contract_account_id.clone())
-                .call(|az_smart_contract_metadata_hub| az_smart_contract_metadata_hub.get());
-            let get_result = client.call_dry_run(&ink_e2e::bob(), &get, 0, None).await;
-            assert!(matches!(get_result.return_value(), false));
-
-            // When
-            let flip = build_message::<AzSmartContractMetadataHubRef>(contract_account_id.clone())
-                .call(|az_smart_contract_metadata_hub| az_smart_contract_metadata_hub.flip());
-            let _flip_result = client
-                .call(&ink_e2e::bob(), flip, 0, None)
-                .await
-                .expect("flip failed");
-
-            // Then
-            let get = build_message::<AzSmartContractMetadataHubRef>(contract_account_id.clone())
-                .call(|az_smart_contract_metadata_hub| az_smart_contract_metadata_hub.get());
-            let get_result = client.call_dry_run(&ink_e2e::bob(), &get, 0, None).await;
-            assert!(matches!(get_result.return_value(), true));
-
-            Ok(())
+        fn test_show() {
+            let (accounts, mut az_smart_contract_metadata_hub) = init();
+            // = when record does not exist
+            // * it return None
+            assert_eq!(az_smart_contract_metadata_hub.show(0), None);
+            // = when record exists
+            let record: Record = az_smart_contract_metadata_hub
+                .records
+                .create(accounts.alice)
+                .unwrap();
+            // * it returns the record
+            assert_eq!(az_smart_contract_metadata_hub.show(record.id), Some(record));
         }
     }
 }
