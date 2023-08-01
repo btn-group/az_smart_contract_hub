@@ -108,9 +108,21 @@ mod az_smart_contract_metadata_hub {
             }
         }
 
+        // === QUERIES ===
         #[ink(message)]
         pub fn show(&self, id: u32) -> Option<Record> {
             self.records.values.get(id)
+        }
+
+        // === HANDLES ===
+        #[ink(message)]
+        pub fn create(
+            &mut self,
+            smart_contract_address: AccountId,
+        ) -> Result<Record, AzSmartContractMetadataHubError> {
+            let record: Record = self.records.create(smart_contract_address)?;
+
+            Ok(record)
         }
     }
 
@@ -141,6 +153,7 @@ mod az_smart_contract_metadata_hub {
             assert_eq!(az_smart_contract_metadata_hub.records.length, 0);
         }
 
+        // === TEST QUERIES ===
         #[ink::test]
         fn test_show() {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
@@ -154,6 +167,41 @@ mod az_smart_contract_metadata_hub {
                 .unwrap();
             // * it returns the record
             assert_eq!(az_smart_contract_metadata_hub.show(record.id), Some(record));
+        }
+
+        // === TEST HANDLES ===
+        #[ink::test]
+        fn test_create() {
+            let (accounts, mut az_smart_contract_metadata_hub) = init();
+            // = when records length is u32::MAX
+            az_smart_contract_metadata_hub.records.length = u32::MAX;
+            // * it raises an error
+            let result = az_smart_contract_metadata_hub.create(accounts.alice);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::RecordsLimitReached)
+            );
+            // = when records length is less than u32::MAX
+            az_smart_contract_metadata_hub.records.length = u32::MAX - 1;
+            // * it increases the records length by 1
+            // * it stores the id as the current length
+            // * it stores the submitted smart contract address
+            // * it sets the like to 1 and dislike to 0
+            let result = az_smart_contract_metadata_hub.create(accounts.alice);
+            let result_unwrapped = result.unwrap();
+            assert_eq!(az_smart_contract_metadata_hub.records.length, u32::MAX);
+            assert_eq!(result_unwrapped.id, u32::MAX - 1);
+            assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
+            assert_eq!(result_unwrapped.likes, 1);
+            assert_eq!(result_unwrapped.dislikes, 0);
+            assert_eq!(
+                result_unwrapped,
+                az_smart_contract_metadata_hub
+                    .records
+                    .values
+                    .get(result_unwrapped.id)
+                    .unwrap()
+            );
         }
     }
 }
