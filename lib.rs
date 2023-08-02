@@ -8,6 +8,7 @@ mod az_smart_contract_metadata_hub {
     #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum AzSmartContractMetadataHubError {
+        AlreadyDisliked,
         AlreadyLiked,
         NotFound(String),
     }
@@ -158,6 +159,30 @@ mod az_smart_contract_metadata_hub {
                 ))
             }
         }
+
+        #[ink(message)]
+        pub fn dislike(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
+            if let Some(mut record) = self.records.values.get(id) {
+                let caller: AccountId = Self::env().caller();
+                // Get current user rating or create
+                if let Some(rating) = self.user_ratings.get((id, caller)) {
+                    if rating == -1 {
+                        return Err(AzSmartContractMetadataHubError::AlreadyDisliked);
+                    } else if rating == 1 {
+                        record.likes -= 1
+                    }
+                }
+                record.dislikes += 1;
+                self.records.update(&record);
+                self.user_ratings.insert((id, caller), &-1);
+
+                Ok(record)
+            } else {
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string(),
+                ))
+            }
+        }
     }
 
     #[cfg(test)]
@@ -295,6 +320,63 @@ mod az_smart_contract_metadata_hub {
                     .get((0, accounts.charlie))
                     .unwrap(),
                 1
+            );
+        }
+
+        #[ink::test]
+        fn test_dislike() {
+            let (accounts, mut az_smart_contract_metadata_hub) = init();
+            // = when record doesn't exist
+            // = * it raises an error
+            let mut result = az_smart_contract_metadata_hub.dislike(0);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string()
+                ))
+            );
+
+            // = when record exists
+            az_smart_contract_metadata_hub
+                .create(accounts.alice)
+                .unwrap();
+            // == when user has already liked
+            // == * it returns the updated record
+            let mut record = az_smart_contract_metadata_hub.dislike(0).unwrap();
+            // == * it increases the dislike count by 1
+            assert_eq!(record.dislikes, 1);
+            // == * it changes the like count
+            assert_eq!(record.likes, 0);
+            // == * it sets the user rating to -1
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.bob))
+                    .unwrap(),
+                -1
+            );
+            // == when user has already disliked
+            // == * it raises an error
+            result = az_smart_contract_metadata_hub.dislike(0);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::AlreadyDisliked)
+            );
+
+            // == when user not liked or disliked
+            set_caller::<DefaultEnvironment>(accounts.charlie);
+            record = az_smart_contract_metadata_hub.dislike(0).unwrap();
+            // == * it does not change the likes count
+            assert_eq!(record.likes, 0);
+            // == * it increases the dislikes count by 1
+            assert_eq!(record.dislikes, 2);
+            // == * it sets the user rating to -1
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.charlie))
+                    .unwrap(),
+                -1
             );
         }
     }
