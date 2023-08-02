@@ -9,8 +9,7 @@ mod az_smart_contract_metadata_hub {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum AzSmartContractMetadataHubError {
         AlreadyLiked,
-        RecordsLimitReached,
-        RecordNotFound,
+        NotFound(String),
     }
 
     // === EVENTS (To be used with Subsquid) ===
@@ -74,10 +73,6 @@ mod az_smart_contract_metadata_hub {
             smart_contract_address: AccountId,
             submitter: AccountId,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
-            if self.length == u32::MAX {
-                return Err(AzSmartContractMetadataHubError::RecordsLimitReached);
-            }
-
             let record: Record = Record {
                 id: self.length,
                 smart_contract_address,
@@ -91,9 +86,9 @@ mod az_smart_contract_metadata_hub {
             Ok(record)
         }
 
-        //     pub fn update(&mut self, value: &Record) {
-        //         self.values.insert(value.id, value);
-        //     }
+        pub fn update(&mut self, value: &Record) {
+            self.values.insert(value.id, value);
+        }
     }
 
     // === CONTRACT ===
@@ -134,17 +129,29 @@ mod az_smart_contract_metadata_hub {
             Ok(record)
         }
 
-        // There's 3 states, like, dislike, neutral
-        // #[ink(message)]
-        // pub fn like(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
-        //     if let Some(record) = self.records.values.get(id) {
-        //         let _caller: AccountId = Self::env().caller();
+        #[ink(message)]
+        pub fn like(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
+            if let Some(mut record) = self.records.values.get(id) {
+                let caller: AccountId = Self::env().caller();
+                // Get current user rating or create
+                if let Some(rating) = self.user_ratings.get((id, caller)) {
+                    if rating == 1 {
+                        return Err(AzSmartContractMetadataHubError::AlreadyLiked);
+                    } else if rating == -1 {
+                        record.dislikes -= 1
+                    }
+                }
+                record.likes += 1;
+                self.records.update(&record);
+                self.user_ratings.insert((id, caller), &1);
 
-        //         Ok(record)
-        //     } else {
-        //         Err(AzSmartContractMetadataHubError::RecordNotFound)
-        //     }
-        // }
+                Ok(record)
+            } else {
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string(),
+                ))
+            }
+        }
     }
 
     #[cfg(test)]
@@ -179,7 +186,7 @@ mod az_smart_contract_metadata_hub {
                 .records
                 .create(accounts.alice, accounts.bob)
                 .unwrap();
-            // * it returns the record
+            // = * it returns the record
             assert_eq!(az_smart_contract_metadata_hub.show(record.id), Some(record));
         }
 
@@ -187,18 +194,9 @@ mod az_smart_contract_metadata_hub {
         #[ink::test]
         fn test_create() {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
-            // = when records length is u32::MAX
-            az_smart_contract_metadata_hub.records.length = u32::MAX;
-            // * it raises an error
-            let mut result = az_smart_contract_metadata_hub.create(accounts.alice);
-            assert_eq!(
-                result,
-                Err(AzSmartContractMetadataHubError::RecordsLimitReached)
-            );
-            // = when records length is less than u32::MAX
             az_smart_contract_metadata_hub.records.length = u32::MAX - 1;
             // * it stores the submitter as the caller
-            result = az_smart_contract_metadata_hub.create(accounts.alice);
+            let result = az_smart_contract_metadata_hub.create(accounts.alice);
             let result_unwrapped = result.unwrap();
             // * it stores the id as the current length
             assert_eq!(result_unwrapped.id, u32::MAX - 1);
@@ -227,6 +225,65 @@ mod az_smart_contract_metadata_hub {
                     .values
                     .get(result_unwrapped.id)
                     .unwrap()
+            );
+        }
+
+        #[ink::test]
+        fn test_like() {
+            let (accounts, mut az_smart_contract_metadata_hub) = init();
+            // = when record doesn't exist
+            // = * it raises an error
+            let mut result = az_smart_contract_metadata_hub.like(0);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string()
+                ))
+            );
+
+            // = when record exists
+            az_smart_contract_metadata_hub
+                .create(accounts.alice)
+                .unwrap();
+            // == when user has already liked
+            // == * it raises an error
+            result = az_smart_contract_metadata_hub.like(0);
+            assert_eq!(result, Err(AzSmartContractMetadataHubError::AlreadyLiked));
+            // == when user has not liked or disliked
+            set_caller::<DefaultEnvironment>(accounts.alice);
+            // == * it returns the updated record
+            let mut record = az_smart_contract_metadata_hub.like(0).unwrap();
+            // == * it increases the like count by 1
+            assert_eq!(record.likes, 2);
+            // == * it does change the dislike count
+            assert_eq!(record.dislikes, 0);
+            // == * it sets the user rating to 1
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.alice))
+                    .unwrap(),
+                1
+            );
+            // == when user has already disliked
+            set_caller::<DefaultEnvironment>(accounts.charlie);
+            record.dislikes += 1;
+            az_smart_contract_metadata_hub.records.update(&record);
+            az_smart_contract_metadata_hub
+                .user_ratings
+                .insert((0, accounts.charlie), &-1);
+            record = az_smart_contract_metadata_hub.like(0).unwrap();
+            // == * it increses the like cout by 1
+            assert_eq!(record.likes, 3);
+            // == * it decreases the dislike count by 1
+            assert_eq!(record.dislikes, 0);
+            // == * it sets the user rating to 1
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.charlie))
+                    .unwrap(),
+                1
             );
         }
     }
