@@ -116,9 +116,9 @@ mod az_smart_contract_metadata_hub {
             if let Some(record) = self.records.values.get(id) {
                 Ok(record)
             } else {
-                return Err(AzSmartContractMetadataHubError::NotFound(
+                Err(AzSmartContractMetadataHubError::NotFound(
                     "Record".to_string(),
-                ));
+                ))
             }
         }
 
