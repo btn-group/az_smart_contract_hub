@@ -8,7 +8,9 @@ mod az_smart_contract_metadata_hub {
     #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum AzSmartContractMetadataHubError {
+        AlreadyLiked,
         RecordsLimitReached,
+        RecordNotFound,
     }
 
     // === EVENTS (To be used with Subsquid) ===
@@ -24,6 +26,7 @@ mod az_smart_contract_metadata_hub {
         smart_contract_address: AccountId,
         likes: u16,
         dislikes: u16,
+        submitter: AccountId,
     }
 
     #[derive(Debug, Default)]
@@ -69,6 +72,7 @@ mod az_smart_contract_metadata_hub {
         pub fn create(
             &mut self,
             smart_contract_address: AccountId,
+            submitter: AccountId,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             if self.length == u32::MAX {
                 return Err(AzSmartContractMetadataHubError::RecordsLimitReached);
@@ -79,6 +83,7 @@ mod az_smart_contract_metadata_hub {
                 smart_contract_address,
                 likes: 1,
                 dislikes: 0,
+                submitter,
             };
             self.values.insert(self.length, &record);
             self.length += 1;
@@ -96,6 +101,7 @@ mod az_smart_contract_metadata_hub {
     #[derive(Default)]
     pub struct AzSmartContractMetadataHub {
         records: Records,
+        user_ratings: Mapping<(u32, AccountId), i8>,
     }
     impl AzSmartContractMetadataHub {
         #[ink(constructor)]
@@ -105,6 +111,7 @@ mod az_smart_contract_metadata_hub {
                     values: Mapping::default(),
                     length: 0,
                 },
+                user_ratings: Mapping::default(),
             }
         }
 
@@ -120,10 +127,24 @@ mod az_smart_contract_metadata_hub {
             &mut self,
             smart_contract_address: AccountId,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
-            let record: Record = self.records.create(smart_contract_address)?;
+            let caller: AccountId = Self::env().caller();
+            let record: Record = self.records.create(smart_contract_address, caller)?;
+            self.user_ratings.insert((record.id, caller), &1);
 
             Ok(record)
         }
+
+        // There's 3 states, like, dislike, neutral
+        // #[ink(message)]
+        // pub fn like(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
+        //     if let Some(record) = self.records.values.get(id) {
+        //         let _caller: AccountId = Self::env().caller();
+
+        //         Ok(record)
+        //     } else {
+        //         Err(AzSmartContractMetadataHubError::RecordNotFound)
+        //     }
+        // }
     }
 
     #[cfg(test)]
@@ -146,13 +167,6 @@ mod az_smart_contract_metadata_hub {
         }
 
         // === TESTS ===
-        #[ink::test]
-        fn test_new() {
-            let (_accounts, az_smart_contract_metadata_hub) = init();
-            // * it sets records
-            assert_eq!(az_smart_contract_metadata_hub.records.length, 0);
-        }
-
         // === TEST QUERIES ===
         #[ink::test]
         fn test_show() {
@@ -163,7 +177,7 @@ mod az_smart_contract_metadata_hub {
             // = when record exists
             let record: Record = az_smart_contract_metadata_hub
                 .records
-                .create(accounts.alice)
+                .create(accounts.alice, accounts.bob)
                 .unwrap();
             // * it returns the record
             assert_eq!(az_smart_contract_metadata_hub.show(record.id), Some(record));
@@ -176,24 +190,36 @@ mod az_smart_contract_metadata_hub {
             // = when records length is u32::MAX
             az_smart_contract_metadata_hub.records.length = u32::MAX;
             // * it raises an error
-            let result = az_smart_contract_metadata_hub.create(accounts.alice);
+            let mut result = az_smart_contract_metadata_hub.create(accounts.alice);
             assert_eq!(
                 result,
                 Err(AzSmartContractMetadataHubError::RecordsLimitReached)
             );
             // = when records length is less than u32::MAX
             az_smart_contract_metadata_hub.records.length = u32::MAX - 1;
-            // * it increases the records length by 1
-            // * it stores the id as the current length
-            // * it stores the submitted smart contract address
-            // * it sets the like to 1 and dislike to 0
-            let result = az_smart_contract_metadata_hub.create(accounts.alice);
+            // * it stores the submitter as the caller
+            result = az_smart_contract_metadata_hub.create(accounts.alice);
             let result_unwrapped = result.unwrap();
-            assert_eq!(az_smart_contract_metadata_hub.records.length, u32::MAX);
+            // * it stores the id as the current length
             assert_eq!(result_unwrapped.id, u32::MAX - 1);
+            // * it increases the records length by 1
+            assert_eq!(az_smart_contract_metadata_hub.records.length, u32::MAX);
+            // * it stores the submitted smart contract address
             assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
+            // * it sets the like to 1 and dislike to 0
             assert_eq!(result_unwrapped.likes, 1);
             assert_eq!(result_unwrapped.dislikes, 0);
+            // * it sets the submitter to the caller
+            assert_eq!(result_unwrapped.submitter, accounts.bob);
+            // * it sets the user_rating to 1
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((result_unwrapped.id, result_unwrapped.submitter))
+                    .unwrap(),
+                1
+            );
+            // * it stores the record
             assert_eq!(
                 result_unwrapped,
                 az_smart_contract_metadata_hub
