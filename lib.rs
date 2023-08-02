@@ -112,8 +112,14 @@ mod az_smart_contract_metadata_hub {
 
         // === QUERIES ===
         #[ink(message)]
-        pub fn show(&self, id: u32) -> Option<Record> {
-            self.records.values.get(id)
+        pub fn show(&self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
+            if let Some(record) = self.records.values.get(id) {
+                Ok(record)
+            } else {
+                return Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string(),
+                ));
+            }
         }
 
         // === HANDLES ===
@@ -179,15 +185,20 @@ mod az_smart_contract_metadata_hub {
         fn test_show() {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
             // = when record does not exist
-            // * it return None
-            assert_eq!(az_smart_contract_metadata_hub.show(0), None);
+            // * it returns error
+            assert_eq!(
+                az_smart_contract_metadata_hub.show(0),
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string()
+                ))
+            );
             // = when record exists
             let record: Record = az_smart_contract_metadata_hub
                 .records
                 .create(accounts.alice, accounts.bob)
                 .unwrap();
             // = * it returns the record
-            assert_eq!(az_smart_contract_metadata_hub.show(record.id), Some(record));
+            assert_eq!(az_smart_contract_metadata_hub.show(record.id), Ok(record));
         }
 
         // === TEST HANDLES ===
