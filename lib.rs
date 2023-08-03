@@ -15,10 +15,16 @@ mod az_smart_contract_metadata_hub {
 
     // === EVENTS (To be used with Subsquid) ===
     #[ink(event)]
-    pub struct RecordCreated {
+    pub struct Create {
         id: u32,
         smart_contract_address: AccountId,
         submitter: AccountId,
+    }
+
+    #[ink(event)]
+    pub struct Toggle {
+        id: u32,
+        enabled: bool,
     }
 
     // === STRUCTS ===
@@ -109,7 +115,7 @@ mod az_smart_contract_metadata_hub {
             self.user_ratings.insert((record.id, caller), &1);
 
             // emit event
-            self.env().emit_event(RecordCreated {
+            self.env().emit_event(Create {
                 id: record.id,
                 smart_contract_address,
                 submitter: caller,
@@ -229,6 +235,12 @@ mod az_smart_contract_metadata_hub {
 
                 record.enabled = enabled;
                 self.records.update(&record);
+
+                // emit event
+                self.env().emit_event(Toggle {
+                    id: record.id,
+                    enabled: record.enabled,
+                });
 
                 Ok(record)
             } else {
