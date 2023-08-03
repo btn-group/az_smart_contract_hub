@@ -126,54 +126,44 @@ mod az_smart_contract_metadata_hub {
 
         #[ink(message)]
         pub fn like(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
-            if let Some(mut record) = self.records.values.get(id) {
-                let caller: AccountId = Self::env().caller();
-                // Get current user rating or create
-                if let Some(rating) = self.user_ratings.get((id, caller)) {
-                    if rating == 1 {
-                        return Err(AzSmartContractMetadataHubError::Already(
-                            "Liked".to_string(),
-                        ));
-                    } else if rating == -1 {
-                        record.dislikes -= 1
-                    }
+            let mut record: Record = self.show(id)?;
+            let caller: AccountId = Self::env().caller();
+            // Get current user rating or create
+            if let Some(rating) = self.user_ratings.get((id, caller)) {
+                if rating == 1 {
+                    return Err(AzSmartContractMetadataHubError::Already(
+                        "Liked".to_string(),
+                    ));
+                } else if rating == -1 {
+                    record.dislikes -= 1
                 }
-                record.likes += 1;
-                self.records.update(&record);
-                self.user_ratings.insert((id, caller), &1);
-
-                Ok(record)
-            } else {
-                Err(AzSmartContractMetadataHubError::NotFound(
-                    "Record".to_string(),
-                ))
             }
+            record.likes += 1;
+            self.records.update(&record);
+            self.user_ratings.insert((id, caller), &1);
+
+            Ok(record)
         }
 
         #[ink(message)]
         pub fn dislike(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
-            if let Some(mut record) = self.records.values.get(id) {
-                let caller: AccountId = Self::env().caller();
-                // Get current user rating or create
-                if let Some(rating) = self.user_ratings.get((id, caller)) {
-                    if rating == -1 {
-                        return Err(AzSmartContractMetadataHubError::Already(
-                            "Disliked".to_string(),
-                        ));
-                    } else if rating == 1 {
-                        record.likes -= 1
-                    }
+            let mut record: Record = self.show(id)?;
+            let caller: AccountId = Self::env().caller();
+            // Get current user rating or create
+            if let Some(rating) = self.user_ratings.get((id, caller)) {
+                if rating == -1 {
+                    return Err(AzSmartContractMetadataHubError::Already(
+                        "Disliked".to_string(),
+                    ));
+                } else if rating == 1 {
+                    record.likes -= 1
                 }
-                record.dislikes += 1;
-                self.records.update(&record);
-                self.user_ratings.insert((id, caller), &-1);
-
-                Ok(record)
-            } else {
-                Err(AzSmartContractMetadataHubError::NotFound(
-                    "Record".to_string(),
-                ))
             }
+            record.dislikes += 1;
+            self.records.update(&record);
+            self.user_ratings.insert((id, caller), &-1);
+
+            Ok(record)
         }
 
         #[ink(message)]
@@ -181,33 +171,28 @@ mod az_smart_contract_metadata_hub {
             &mut self,
             id: u32,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
-            if let Some(mut record) = self.records.values.get(id) {
-                let caller: AccountId = Self::env().caller();
-                // Get current user rating or create
-                if let Some(rating) = self.user_ratings.get((id, caller)) {
-                    if rating == 0 {
-                        return Err(AzSmartContractMetadataHubError::Already(
-                            "Neutral".to_string(),
-                        ));
-                    } else if rating == 1 {
-                        record.likes -= 1
-                    } else {
-                        record.dislikes -= 1
-                    }
-                } else {
+            let mut record: Record = self.show(id)?;
+            let caller: AccountId = Self::env().caller();
+            // Get current user rating or create
+            if let Some(rating) = self.user_ratings.get((id, caller)) {
+                if rating == 0 {
                     return Err(AzSmartContractMetadataHubError::Already(
                         "Neutral".to_string(),
                     ));
+                } else if rating == 1 {
+                    record.likes -= 1
+                } else {
+                    record.dislikes -= 1
                 }
-                self.records.update(&record);
-                self.user_ratings.insert((id, caller), &0);
-
-                Ok(record)
             } else {
-                Err(AzSmartContractMetadataHubError::NotFound(
-                    "Record".to_string(),
-                ))
+                return Err(AzSmartContractMetadataHubError::Already(
+                    "Neutral".to_string(),
+                ));
             }
+            self.records.update(&record);
+            self.user_ratings.insert((id, caller), &0);
+
+            Ok(record)
         }
 
         #[ink(message)]
@@ -216,38 +201,33 @@ mod az_smart_contract_metadata_hub {
             id: u32,
             enabled: bool,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
-            if let Some(mut record) = self.records.values.get(id) {
-                let caller: AccountId = Self::env().caller();
-                if caller != record.submitter {
-                    return Err(AzSmartContractMetadataHubError::Unauthorized);
-                }
-                if record.enabled == enabled {
-                    if enabled {
-                        return Err(AzSmartContractMetadataHubError::Already(
-                            "Enabled".to_string(),
-                        ));
-                    } else {
-                        return Err(AzSmartContractMetadataHubError::Already(
-                            "Disabled".to_string(),
-                        ));
-                    }
-                }
-
-                record.enabled = enabled;
-                self.records.update(&record);
-
-                // emit event
-                self.env().emit_event(Toggle {
-                    id: record.id,
-                    enabled: record.enabled,
-                });
-
-                Ok(record)
-            } else {
-                Err(AzSmartContractMetadataHubError::NotFound(
-                    "Record".to_string(),
-                ))
+            let mut record: Record = self.show(id)?;
+            let caller: AccountId = Self::env().caller();
+            if caller != record.submitter {
+                return Err(AzSmartContractMetadataHubError::Unauthorized);
             }
+            if record.enabled == enabled {
+                if enabled {
+                    return Err(AzSmartContractMetadataHubError::Already(
+                        "Enabled".to_string(),
+                    ));
+                } else {
+                    return Err(AzSmartContractMetadataHubError::Already(
+                        "Disabled".to_string(),
+                    ));
+                }
+            }
+
+            record.enabled = enabled;
+            self.records.update(&record);
+
+            // emit event
+            self.env().emit_event(Toggle {
+                id: record.id,
+                enabled: record.enabled,
+            });
+
+            Ok(record)
         }
     }
 
