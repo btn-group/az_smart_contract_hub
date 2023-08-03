@@ -37,39 +37,6 @@ mod az_smart_contract_metadata_hub {
         length: u32,
     }
     impl Records {
-        //     pub fn index(&self, page: u32, size: u16) -> Vec<Record> {
-        //         let mut records: Vec<Record> = vec![];
-        //         // When there's no records
-        //         if self.length == 0 {
-        //             return records;
-        //         }
-
-        //         let records_to_skip: Option<u32> = if page == 0 {
-        //             Some(0)
-        //         } else {
-        //             page.checked_mul(size.into())
-        //         };
-        //         let starting_index: u32;
-        //         let ending_index: u32;
-        //         // When the records to skip is greater than max possible
-        //         if let Some(records_to_skip_unwrapped) = records_to_skip {
-        //             let ending_index_wrapped: Option<u32> =
-        //                 self.length.checked_sub(records_to_skip_unwrapped);
-        //             // When records to skip is greater than total number of records
-        //             if ending_index_wrapped.is_none() {
-        //                 return records;
-        //             }
-        //             ending_index = ending_index_wrapped.unwrap();
-        //             starting_index = ending_index.saturating_sub(size.into());
-        //         } else {
-        //             return records;
-        //         }
-        //         for i in (starting_index..=ending_index).rev() {
-        //             records.push(self.values.get(i).unwrap())
-        //         }
-        //         records
-        //     }
-
         pub fn create(
             &mut self,
             smart_contract_address: AccountId,
