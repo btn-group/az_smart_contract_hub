@@ -14,6 +14,12 @@ mod az_smart_contract_metadata_hub {
     }
 
     // === EVENTS (To be used with Subsquid) ===
+    #[ink(event)]
+    pub struct RecordCreated {
+        id: u32,
+        smart_contract_address: AccountId,
+        submitter: AccountId,
+    }
 
     // === STRUCTS ===
     #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
@@ -101,6 +107,13 @@ mod az_smart_contract_metadata_hub {
             let caller: AccountId = Self::env().caller();
             let record: Record = self.records.create(smart_contract_address, caller)?;
             self.user_ratings.insert((record.id, caller), &1);
+
+            // emit event
+            self.env().emit_event(RecordCreated {
+                id: record.id,
+                smart_contract_address,
+                submitter: caller,
+            });
 
             Ok(record)
         }
