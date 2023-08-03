@@ -8,10 +8,9 @@ mod az_smart_contract_metadata_hub {
     #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum AzSmartContractMetadataHubError {
-        AlreadyDisliked,
-        AlreadyLiked,
-        AlreadyNeutral,
+        Already(String),
         NotFound(String),
+        Unauthorized,
     }
 
     // === EVENTS (To be used with Subsquid) ===
@@ -28,6 +27,7 @@ mod az_smart_contract_metadata_hub {
         likes: u16,
         dislikes: u16,
         submitter: AccountId,
+        enabled: bool,
     }
 
     #[derive(Debug, Default)]
@@ -81,6 +81,7 @@ mod az_smart_contract_metadata_hub {
                 likes: 1,
                 dislikes: 0,
                 submitter,
+                enabled: true,
             };
             self.values.insert(self.length, &record);
             self.length += 1;
@@ -144,7 +145,9 @@ mod az_smart_contract_metadata_hub {
                 // Get current user rating or create
                 if let Some(rating) = self.user_ratings.get((id, caller)) {
                     if rating == 1 {
-                        return Err(AzSmartContractMetadataHubError::AlreadyLiked);
+                        return Err(AzSmartContractMetadataHubError::Already(
+                            "Liked".to_string(),
+                        ));
                     } else if rating == -1 {
                         record.dislikes -= 1
                     }
@@ -168,7 +171,9 @@ mod az_smart_contract_metadata_hub {
                 // Get current user rating or create
                 if let Some(rating) = self.user_ratings.get((id, caller)) {
                     if rating == -1 {
-                        return Err(AzSmartContractMetadataHubError::AlreadyDisliked);
+                        return Err(AzSmartContractMetadataHubError::Already(
+                            "Disliked".to_string(),
+                        ));
                     } else if rating == 1 {
                         record.likes -= 1
                     }
@@ -195,17 +200,55 @@ mod az_smart_contract_metadata_hub {
                 // Get current user rating or create
                 if let Some(rating) = self.user_ratings.get((id, caller)) {
                     if rating == 0 {
-                        return Err(AzSmartContractMetadataHubError::AlreadyNeutral);
+                        return Err(AzSmartContractMetadataHubError::Already(
+                            "Neutral".to_string(),
+                        ));
                     } else if rating == 1 {
                         record.likes -= 1
                     } else {
                         record.dislikes -= 1
                     }
                 } else {
-                    return Err(AzSmartContractMetadataHubError::AlreadyNeutral);
+                    return Err(AzSmartContractMetadataHubError::Already(
+                        "Neutral".to_string(),
+                    ));
                 }
                 self.records.update(&record);
                 self.user_ratings.insert((id, caller), &0);
+
+                Ok(record)
+            } else {
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string(),
+                ))
+            }
+        }
+
+        #[ink(message)]
+        pub fn toggle_enabled(
+            &mut self,
+            id: u32,
+            enabled: bool,
+        ) -> Result<Record, AzSmartContractMetadataHubError> {
+            if let Some(mut record) = self.records.values.get(id) {
+                let caller: AccountId = Self::env().caller();
+                if caller != record.submitter {
+                    return Err(AzSmartContractMetadataHubError::Unauthorized);
+                }
+                if record.enabled == enabled {
+                    if enabled {
+                        return Err(AzSmartContractMetadataHubError::Already(
+                            "Enabled".to_string(),
+                        ));
+                    } else {
+                        return Err(AzSmartContractMetadataHubError::Already(
+                            "Disabled".to_string(),
+                        ));
+                    }
+                }
+
+                record.enabled = enabled;
+                self.records.update(&record);
 
                 Ok(record)
             } else {
@@ -315,7 +358,12 @@ mod az_smart_contract_metadata_hub {
             // == when user has already liked
             // == * it raises an error
             result = az_smart_contract_metadata_hub.like(0);
-            assert_eq!(result, Err(AzSmartContractMetadataHubError::AlreadyLiked));
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::Already(
+                    "Liked".to_string()
+                ))
+            );
             // == when user has not liked or disliked
             set_caller::<DefaultEnvironment>(accounts.alice);
             // == * it returns the updated record
@@ -391,7 +439,9 @@ mod az_smart_contract_metadata_hub {
             result = az_smart_contract_metadata_hub.dislike(0);
             assert_eq!(
                 result,
-                Err(AzSmartContractMetadataHubError::AlreadyDisliked)
+                Err(AzSmartContractMetadataHubError::Already(
+                    "Disliked".to_string()
+                ))
             );
 
             // == when user not liked or disliked
@@ -446,13 +496,23 @@ mod az_smart_contract_metadata_hub {
             // == when user has already reset_rating
             // == * it raises an error
             result = az_smart_contract_metadata_hub.reset_user_rating(0);
-            assert_eq!(result, Err(AzSmartContractMetadataHubError::AlreadyNeutral));
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::Already(
+                    "Neutral".to_string()
+                ))
+            );
 
             // == when user has no user_rating
             set_caller::<DefaultEnvironment>(accounts.charlie);
             // == * it raises an error
             result = az_smart_contract_metadata_hub.reset_user_rating(0);
-            assert_eq!(result, Err(AzSmartContractMetadataHubError::AlreadyNeutral));
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::Already(
+                    "Neutral".to_string()
+                ))
+            );
 
             // == when user has already disliked
             set_caller::<DefaultEnvironment>(accounts.charlie);
@@ -471,6 +531,61 @@ mod az_smart_contract_metadata_hub {
                     .unwrap(),
                 0
             );
+        }
+
+        #[ink::test]
+        fn test_toggle_enabled() {
+            let (accounts, mut az_smart_contract_metadata_hub) = init();
+            // = when record doesn't exist
+            // = * it raises an error
+            let mut result = az_smart_contract_metadata_hub.reset_user_rating(0);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::NotFound(
+                    "Record".to_string()
+                ))
+            );
+
+            // = when record exists
+            az_smart_contract_metadata_hub
+                .create(accounts.alice)
+                .unwrap();
+            // == when called by non-submitter
+            set_caller::<DefaultEnvironment>(accounts.charlie);
+            // == * it raises an error
+            result = az_smart_contract_metadata_hub.toggle_enabled(0, false);
+            assert_eq!(result, Err(AzSmartContractMetadataHubError::Unauthorized));
+            // == when called by submitter
+            set_caller::<DefaultEnvironment>(accounts.bob);
+            // === when record is already enabled
+            // ==== when the user tries to enable
+            // ==== * it raises an error
+            result = az_smart_contract_metadata_hub.toggle_enabled(0, true);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::Already(
+                    "Enabled".to_string()
+                ))
+            );
+            // ==== when the user tries to disable
+            // ==== * it updates the record enabled to false
+            result = az_smart_contract_metadata_hub.toggle_enabled(0, false);
+            assert_eq!(result.unwrap().enabled, false);
+
+            // === when record is already disabled
+            // ==== when the user tries to disable
+            // ==== * it raises an error
+            result = az_smart_contract_metadata_hub.toggle_enabled(0, false);
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::Already(
+                    "Disabled".to_string()
+                ))
+            );
+            // ==== when the user tries to enable
+            // ==== * it updates the record enabled to true
+            result = az_smart_contract_metadata_hub.toggle_enabled(0, true);
+            assert_eq!(result.unwrap().enabled, true);
         }
     }
 }
