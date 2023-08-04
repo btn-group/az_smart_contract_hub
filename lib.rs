@@ -2,6 +2,7 @@
 
 #[ink::contract]
 mod az_smart_contract_metadata_hub {
+    use ink::prelude::string::{String, ToString};
     use ink::storage::Mapping;
 
     // === ENUMS ===
