@@ -45,6 +45,7 @@ mod az_smart_contract_metadata_hub {
     pub struct Record {
         id: u32,
         smart_contract_address: AccountId,
+        url: String,
         likes: u16,
         dislikes: u16,
         submitter: AccountId,
@@ -62,10 +63,12 @@ mod az_smart_contract_metadata_hub {
             &mut self,
             smart_contract_address: AccountId,
             submitter: AccountId,
+            url: String,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             let record: Record = Record {
                 id: self.length,
                 smart_contract_address,
+                url,
                 likes: 1,
                 dislikes: 0,
                 submitter,
@@ -118,9 +121,10 @@ mod az_smart_contract_metadata_hub {
         pub fn create(
             &mut self,
             smart_contract_address: AccountId,
+            url: String,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             let caller: AccountId = Self::env().caller();
-            let record: Record = self.records.create(smart_contract_address, caller)?;
+            let record: Record = self.records.create(smart_contract_address, caller, url)?;
             self.user_ratings.insert((record.id, caller), &1);
 
             // emit event
@@ -223,6 +227,8 @@ mod az_smart_contract_metadata_hub {
             DefaultEnvironment,
         };
 
+        const MOCK_URL: &str = "https://res.cloudinary.com/hv5cxagki/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
+
         // === HELPERS ===
         fn init() -> (
             DefaultAccounts<DefaultEnvironment>,
@@ -250,7 +256,7 @@ mod az_smart_contract_metadata_hub {
             // = when record exists
             let record: Record = az_smart_contract_metadata_hub
                 .records
-                .create(accounts.alice, accounts.bob)
+                .create(accounts.alice, accounts.bob, MOCK_URL.to_string())
                 .unwrap();
             // = * it returns the record
             assert_eq!(az_smart_contract_metadata_hub.show(record.id), Ok(record));
@@ -262,7 +268,8 @@ mod az_smart_contract_metadata_hub {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
             az_smart_contract_metadata_hub.records.length = u32::MAX - 1;
             // * it stores the submitter as the caller
-            let result = az_smart_contract_metadata_hub.create(accounts.alice);
+            let result =
+                az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string());
             let result_unwrapped = result.unwrap();
             // * it stores the id as the current length
             assert_eq!(result_unwrapped.id, u32::MAX - 1);
@@ -309,7 +316,7 @@ mod az_smart_contract_metadata_hub {
 
             // = when record exists
             az_smart_contract_metadata_hub
-                .create(accounts.alice)
+                .create(accounts.alice, MOCK_URL.to_string())
                 .unwrap();
             // == when new rating is less than -1
             result = az_smart_contract_metadata_hub.rate(0, -2);
@@ -467,7 +474,7 @@ mod az_smart_contract_metadata_hub {
 
             // = when record exists
             az_smart_contract_metadata_hub
-                .create(accounts.alice)
+                .create(accounts.alice, MOCK_URL.to_string())
                 .unwrap();
             // == when called by non-submitter
             set_caller::<DefaultEnvironment>(accounts.charlie);
