@@ -8,9 +8,10 @@ mod az_smart_contract_metadata_hub {
     #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum AzSmartContractMetadataHubError {
-        Already(String),
         NotFound(String),
+        OutOfRange(String),
         Unauthorized,
+        Unchanged(String),
     }
 
     // === EVENTS ===
@@ -31,7 +32,7 @@ mod az_smart_contract_metadata_hub {
     pub struct Rate {
         id: u32,
         previous_user_rating: i8,
-        current_user_rating: i8,
+        new_user_rating: i8,
         user: AccountId,
     }
 
@@ -133,101 +134,53 @@ mod az_smart_contract_metadata_hub {
         }
 
         #[ink(message)]
-        pub fn like(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
-            let mut record: Record = self.show(id)?;
-            let caller: AccountId = Self::env().caller();
-            let mut previous_user_rating: i8 = 0;
-            // Get current user rating or create
-            if let Some(rating) = self.user_ratings.get((id, caller)) {
-                previous_user_rating = rating;
-                if rating == 1 {
-                    return Err(AzSmartContractMetadataHubError::Already(
-                        "Liked".to_string(),
-                    ));
-                } else if rating == -1 {
-                    record.dislikes -= 1
-                }
-            }
-            record.likes += 1;
-            self.records.update(&record);
-            self.user_ratings.insert((id, caller), &1);
-
-            // emit event
-            self.env().emit_event(Rate {
-                id: record.id,
-                previous_user_rating,
-                current_user_rating: 1,
-                user: caller,
-            });
-
-            Ok(record)
-        }
-
-        #[ink(message)]
-        pub fn dislike(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
-            let mut record: Record = self.show(id)?;
-            let caller: AccountId = Self::env().caller();
-            let mut previous_user_rating: i8 = 0;
-            // Get current user rating or create
-            if let Some(rating) = self.user_ratings.get((id, caller)) {
-                previous_user_rating = rating;
-                if rating == -1 {
-                    return Err(AzSmartContractMetadataHubError::Already(
-                        "Disliked".to_string(),
-                    ));
-                } else if rating == 1 {
-                    record.likes -= 1
-                }
-            }
-            record.dislikes += 1;
-            self.records.update(&record);
-            self.user_ratings.insert((id, caller), &-1);
-
-            // emit event
-            self.env().emit_event(Rate {
-                id: record.id,
-                previous_user_rating,
-                current_user_rating: -1,
-                user: caller,
-            });
-
-            Ok(record)
-        }
-
-        #[ink(message)]
-        pub fn reset_user_rating(
+        pub fn rate(
             &mut self,
             id: u32,
+            new_user_rating: i8,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             let mut record: Record = self.show(id)?;
-            let caller: AccountId = Self::env().caller();
-            // Get current user rating or create
-            if let Some(rating) = self.user_ratings.get((id, caller)) {
-                let previous_user_rating: i8 = rating;
-                if rating == 0 {
-                    return Err(AzSmartContractMetadataHubError::Already(
-                        "Neutral".to_string(),
-                    ));
-                } else if rating == 1 {
-                    record.likes -= 1
-                } else {
-                    record.dislikes -= 1
-                }
-                self.records.update(&record);
-                self.user_ratings.insert((id, caller), &0);
-
-                // emit event
-                self.env().emit_event(Rate {
-                    id: record.id,
-                    previous_user_rating,
-                    current_user_rating: -1,
-                    user: caller,
-                });
-            } else {
-                return Err(AzSmartContractMetadataHubError::Already(
-                    "Neutral".to_string(),
+            if !(-1..=1).contains(&new_user_rating) {
+                return Err(AzSmartContractMetadataHubError::OutOfRange(
+                    "Rating".to_string(),
                 ));
             }
+
+            let caller: AccountId = Self::env().caller();
+            let previous_user_rating: i8 = self.user_ratings.get((id, caller)).unwrap_or(0);
+            if previous_user_rating == new_user_rating {
+                return Err(AzSmartContractMetadataHubError::Unchanged(
+                    "Rating".to_string(),
+                ));
+            }
+
+            if new_user_rating == -1 {
+                if previous_user_rating == 1 {
+                    record.likes -= 1
+                }
+                record.dislikes += 1
+            } else if new_user_rating == 0 {
+                if previous_user_rating == 1 {
+                    record.likes -= 1
+                } else if previous_user_rating == -1 {
+                    record.dislikes -= 1
+                }
+            } else {
+                if previous_user_rating == -1 {
+                    record.dislikes -= 1
+                }
+                record.likes += 1
+            }
+            self.records.update(&record);
+            self.user_ratings.insert((id, caller), &new_user_rating);
+
+            // emit event
+            self.env().emit_event(Rate {
+                id: record.id,
+                previous_user_rating,
+                new_user_rating,
+                user: caller,
+            });
 
             Ok(record)
         }
@@ -244,15 +197,9 @@ mod az_smart_contract_metadata_hub {
                 return Err(AzSmartContractMetadataHubError::Unauthorized);
             }
             if record.enabled == enabled {
-                if enabled {
-                    return Err(AzSmartContractMetadataHubError::Already(
-                        "Enabled".to_string(),
-                    ));
-                } else {
-                    return Err(AzSmartContractMetadataHubError::Already(
-                        "Disabled".to_string(),
-                    ));
-                }
+                return Err(AzSmartContractMetadataHubError::Unchanged(
+                    "Enabled".to_string(),
+                ));
             }
 
             record.enabled = enabled;
@@ -348,11 +295,11 @@ mod az_smart_contract_metadata_hub {
         }
 
         #[ink::test]
-        fn test_like() {
+        fn test_rate() {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
             // = when record doesn't exist
             // = * it raises an error
-            let mut result = az_smart_contract_metadata_hub.like(0);
+            let mut result = az_smart_contract_metadata_hub.rate(0, 0);
             assert_eq!(
                 result,
                 Err(AzSmartContractMetadataHubError::NotFound(
@@ -364,181 +311,144 @@ mod az_smart_contract_metadata_hub {
             az_smart_contract_metadata_hub
                 .create(accounts.alice)
                 .unwrap();
-            // == when user has already liked
+            // == when new rating is less than -1
+            result = az_smart_contract_metadata_hub.rate(0, -2);
             // == * it raises an error
-            result = az_smart_contract_metadata_hub.like(0);
             assert_eq!(
                 result,
-                Err(AzSmartContractMetadataHubError::Already(
-                    "Liked".to_string()
+                Err(AzSmartContractMetadataHubError::OutOfRange(
+                    "Rating".to_string()
                 ))
             );
-            // == when user has not liked or disliked
-            set_caller::<DefaultEnvironment>(accounts.alice);
-            // == * it returns the updated record
-            let mut record = az_smart_contract_metadata_hub.like(0).unwrap();
-            // == * it increases the like count by 1
-            assert_eq!(record.likes, 2);
-            // == * it does change the dislike count
-            assert_eq!(record.dislikes, 0);
-            // == * it sets the user rating to 1
-            assert_eq!(
-                az_smart_contract_metadata_hub
-                    .user_ratings
-                    .get((0, accounts.alice))
-                    .unwrap(),
-                1
-            );
-            // == when user has already disliked
-            set_caller::<DefaultEnvironment>(accounts.charlie);
-            record.dislikes += 1;
-            az_smart_contract_metadata_hub.records.update(&record);
-            az_smart_contract_metadata_hub
-                .user_ratings
-                .insert((0, accounts.charlie), &-1);
-            record = az_smart_contract_metadata_hub.like(0).unwrap();
-            // == * it increses the like cout by 1
-            assert_eq!(record.likes, 3);
-            // == * it decreases the dislike count by 1
-            assert_eq!(record.dislikes, 0);
-            // == * it sets the user rating to 1
-            assert_eq!(
-                az_smart_contract_metadata_hub
-                    .user_ratings
-                    .get((0, accounts.charlie))
-                    .unwrap(),
-                1
-            );
-        }
-
-        #[ink::test]
-        fn test_dislike() {
-            let (accounts, mut az_smart_contract_metadata_hub) = init();
-            // = when record doesn't exist
-            // = * it raises an error
-            let mut result = az_smart_contract_metadata_hub.dislike(0);
+            // == when new rating is grater than 1
+            result = az_smart_contract_metadata_hub.rate(0, 2);
+            // == * it raises an error
             assert_eq!(
                 result,
-                Err(AzSmartContractMetadataHubError::NotFound(
-                    "Record".to_string()
+                Err(AzSmartContractMetadataHubError::OutOfRange(
+                    "Rating".to_string()
+                ))
+            );
+            // == when new rating is within range
+            // === when new rating is the same as user's current rating
+            result = az_smart_contract_metadata_hub.rate(0, 1);
+            // === * it raises an error
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::Unchanged(
+                    "Rating".to_string()
                 ))
             );
 
-            // = when record exists
-            az_smart_contract_metadata_hub
-                .create(accounts.alice)
+            // === when new rating is different to user's current rating
+            // ==== when current rating is 1
+            // ===== when new rating is 0
+            let mut new_user_rating: i8 = 0;
+            result = az_smart_contract_metadata_hub.rate(0, new_user_rating);
+            let mut record = result.unwrap();
+            // ===== * it reduces the record's likes by 1
+            // ===== * it does not change the dislikes
+            // ===== * it sets the user's rating for the record to 1
+            assert_eq!(record.likes, 0);
+            assert_eq!(record.dislikes, 0);
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.bob))
+                    .unwrap_or(0),
+                new_user_rating
+            );
+
+            // ===== when new rating is -1
+            az_smart_contract_metadata_hub.rate(0, 1).unwrap();
+            new_user_rating = -1;
+            record = az_smart_contract_metadata_hub
+                .rate(0, new_user_rating)
                 .unwrap();
-            // == when user has already liked
-            // == * it returns the updated record
-            let mut record = az_smart_contract_metadata_hub.dislike(0).unwrap();
-            // == * it increases the dislike count by 1
+            // ===== * it reduces the record's likes by 1
+            // ===== * it increases the record's dislikes by 1
+            // ===== * it sets the user's rating for the record to -1
+            assert_eq!(record.likes, 0);
             assert_eq!(record.dislikes, 1);
-            // == * it changes the like count
-            assert_eq!(record.likes, 0);
-            // == * it sets the user rating to -1
             assert_eq!(
                 az_smart_contract_metadata_hub
                     .user_ratings
                     .get((0, accounts.bob))
-                    .unwrap(),
-                -1
-            );
-            // == when user has already disliked
-            // == * it raises an error
-            result = az_smart_contract_metadata_hub.dislike(0);
-            assert_eq!(
-                result,
-                Err(AzSmartContractMetadataHubError::Already(
-                    "Disliked".to_string()
-                ))
+                    .unwrap_or(0),
+                new_user_rating
             );
 
-            // == when user not liked or disliked
-            set_caller::<DefaultEnvironment>(accounts.charlie);
-            record = az_smart_contract_metadata_hub.dislike(0).unwrap();
-            // == * it does not change the likes count
+            // ==== when current rating is -1
+            // ===== when new rating is 0
+            new_user_rating = 0;
+            result = az_smart_contract_metadata_hub.rate(0, new_user_rating);
+            record = result.unwrap();
+            // ===== * it reduces the record's dislikes by 1
+            // ===== * it does not change the likes
+            // ===== * it sets the user's rating for the record to 0
             assert_eq!(record.likes, 0);
-            // == * it increases the dislikes count by 1
-            assert_eq!(record.dislikes, 2);
-            // == * it sets the user rating to -1
-            assert_eq!(
-                az_smart_contract_metadata_hub
-                    .user_ratings
-                    .get((0, accounts.charlie))
-                    .unwrap(),
-                -1
-            );
-        }
-
-        #[ink::test]
-        fn test_reset_user_rating() {
-            let (accounts, mut az_smart_contract_metadata_hub) = init();
-            // = when record doesn't exist
-            // = * it raises an error
-            let mut result = az_smart_contract_metadata_hub.reset_user_rating(0);
-            assert_eq!(
-                result,
-                Err(AzSmartContractMetadataHubError::NotFound(
-                    "Record".to_string()
-                ))
-            );
-
-            // = when record exists
-            az_smart_contract_metadata_hub
-                .create(accounts.alice)
-                .unwrap();
-            // == when user has already liked
-            // == * it returns the updated record
-            let mut record = az_smart_contract_metadata_hub.reset_user_rating(0).unwrap();
-            // == * it decreases the like  count by 1
-            assert_eq!(record.likes, 0);
-            // == * it does not change the dislikes count
             assert_eq!(record.dislikes, 0);
-            // == * it sets the user rating to 0
             assert_eq!(
                 az_smart_contract_metadata_hub
                     .user_ratings
                     .get((0, accounts.bob))
-                    .unwrap(),
-                0
-            );
-            // == when user has already reset_rating
-            // == * it raises an error
-            result = az_smart_contract_metadata_hub.reset_user_rating(0);
-            assert_eq!(
-                result,
-                Err(AzSmartContractMetadataHubError::Already(
-                    "Neutral".to_string()
-                ))
+                    .unwrap_or(0),
+                new_user_rating
             );
 
-            // == when user has no user_rating
-            set_caller::<DefaultEnvironment>(accounts.charlie);
-            // == * it raises an error
-            result = az_smart_contract_metadata_hub.reset_user_rating(0);
-            assert_eq!(
-                result,
-                Err(AzSmartContractMetadataHubError::Already(
-                    "Neutral".to_string()
-                ))
-            );
-
-            // == when user has already disliked
-            set_caller::<DefaultEnvironment>(accounts.charlie);
-            az_smart_contract_metadata_hub.dislike(0).unwrap();
-
-            record = az_smart_contract_metadata_hub.reset_user_rating(0).unwrap();
-            // == * it does not change the likes count
-            assert_eq!(record.likes, 0);
-            // == * it decreases the dislike count by 1
+            // ===== when new rating is 1
+            az_smart_contract_metadata_hub.rate(0, -1).unwrap();
+            new_user_rating = 1;
+            result = az_smart_contract_metadata_hub.rate(0, new_user_rating);
+            record = result.unwrap();
+            // ===== * it reduces the record's dislikes by 1
+            // ===== * it increases the likes by 1
+            // ===== * it sets the user's rating for the record to 1
+            assert_eq!(record.likes, 1);
             assert_eq!(record.dislikes, 0);
-            // == * it sets the user rating to 0
             assert_eq!(
                 az_smart_contract_metadata_hub
                     .user_ratings
-                    .get((0, accounts.charlie))
-                    .unwrap(),
-                0
+                    .get((0, accounts.bob))
+                    .unwrap_or(0),
+                new_user_rating
+            );
+
+            // ==== when current rating is 0
+            az_smart_contract_metadata_hub.rate(0, 0).unwrap();
+            // ===== when new rating is 1
+            new_user_rating = 1;
+            result = az_smart_contract_metadata_hub.rate(0, new_user_rating);
+            record = result.unwrap();
+            // ===== * it does not change the dislikes
+            // ===== * it increases the likes by 1
+            // ===== * it sets the user's rating for the record to 1
+            assert_eq!(record.likes, 1);
+            assert_eq!(record.dislikes, 0);
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.bob))
+                    .unwrap_or(0),
+                new_user_rating
+            );
+
+            az_smart_contract_metadata_hub.rate(0, 0).unwrap();
+            // ===== when new rating is -1
+            new_user_rating = -1;
+            result = az_smart_contract_metadata_hub.rate(0, new_user_rating);
+            record = result.unwrap();
+            // ===== * it increases the dislikes by 1
+            // ===== * it does not change the likes
+            // ===== * it sets the user's rating for the record to -1
+            assert_eq!(record.likes, 0);
+            assert_eq!(record.dislikes, 1);
+            assert_eq!(
+                az_smart_contract_metadata_hub
+                    .user_ratings
+                    .get((0, accounts.bob))
+                    .unwrap_or(0),
+                new_user_rating
             );
         }
 
@@ -547,7 +457,7 @@ mod az_smart_contract_metadata_hub {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
             // = when record doesn't exist
             // = * it raises an error
-            let mut result = az_smart_contract_metadata_hub.reset_user_rating(0);
+            let mut result = az_smart_contract_metadata_hub.toggle_enabled(0, false);
             assert_eq!(
                 result,
                 Err(AzSmartContractMetadataHubError::NotFound(
@@ -572,7 +482,7 @@ mod az_smart_contract_metadata_hub {
             result = az_smart_contract_metadata_hub.toggle_enabled(0, true);
             assert_eq!(
                 result,
-                Err(AzSmartContractMetadataHubError::Already(
+                Err(AzSmartContractMetadataHubError::Unchanged(
                     "Enabled".to_string()
                 ))
             );
@@ -587,8 +497,8 @@ mod az_smart_contract_metadata_hub {
             result = az_smart_contract_metadata_hub.toggle_enabled(0, false);
             assert_eq!(
                 result,
-                Err(AzSmartContractMetadataHubError::Already(
-                    "Disabled".to_string()
+                Err(AzSmartContractMetadataHubError::Unchanged(
+                    "Enabled".to_string()
                 ))
             );
             // ==== when the user tries to enable
