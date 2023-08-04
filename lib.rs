@@ -140,7 +140,7 @@ mod az_smart_contract_metadata_hub {
             new_user_rating: i8,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             let mut record: Record = self.show(id)?;
-            if new_user_rating < -1 || new_user_rating > 1 {
+            if !(-1..=1).contains(&new_user_rating) {
                 return Err(AzSmartContractMetadataHubError::OutOfRange(
                     "Rating".to_string(),
                 ));
