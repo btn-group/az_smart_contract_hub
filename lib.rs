@@ -13,7 +13,7 @@ mod az_smart_contract_metadata_hub {
         Unauthorized,
     }
 
-    // === EVENTS (To be used with Subsquid) ===
+    // === EVENTS ===
     #[ink(event)]
     pub struct Create {
         id: u32,
@@ -25,6 +25,14 @@ mod az_smart_contract_metadata_hub {
     pub struct Toggle {
         id: u32,
         enabled: bool,
+    }
+
+    #[ink(event)]
+    pub struct Rate {
+        id: u32,
+        previous_user_rating: i8,
+        current_user_rating: i8,
+        user: AccountId,
     }
 
     // === STRUCTS ===
@@ -128,8 +136,10 @@ mod az_smart_contract_metadata_hub {
         pub fn like(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
             let mut record: Record = self.show(id)?;
             let caller: AccountId = Self::env().caller();
+            let mut previous_user_rating: i8 = 0;
             // Get current user rating or create
             if let Some(rating) = self.user_ratings.get((id, caller)) {
+                previous_user_rating = rating;
                 if rating == 1 {
                     return Err(AzSmartContractMetadataHubError::Already(
                         "Liked".to_string(),
@@ -142,6 +152,14 @@ mod az_smart_contract_metadata_hub {
             self.records.update(&record);
             self.user_ratings.insert((id, caller), &1);
 
+            // emit event
+            self.env().emit_event(Rate {
+                id: record.id,
+                previous_user_rating,
+                current_user_rating: 1,
+                user: caller,
+            });
+
             Ok(record)
         }
 
@@ -149,8 +167,10 @@ mod az_smart_contract_metadata_hub {
         pub fn dislike(&mut self, id: u32) -> Result<Record, AzSmartContractMetadataHubError> {
             let mut record: Record = self.show(id)?;
             let caller: AccountId = Self::env().caller();
+            let mut previous_user_rating: i8 = 0;
             // Get current user rating or create
             if let Some(rating) = self.user_ratings.get((id, caller)) {
+                previous_user_rating = rating;
                 if rating == -1 {
                     return Err(AzSmartContractMetadataHubError::Already(
                         "Disliked".to_string(),
@@ -162,6 +182,14 @@ mod az_smart_contract_metadata_hub {
             record.dislikes += 1;
             self.records.update(&record);
             self.user_ratings.insert((id, caller), &-1);
+
+            // emit event
+            self.env().emit_event(Rate {
+                id: record.id,
+                previous_user_rating,
+                current_user_rating: -1,
+                user: caller,
+            });
 
             Ok(record)
         }
@@ -175,6 +203,7 @@ mod az_smart_contract_metadata_hub {
             let caller: AccountId = Self::env().caller();
             // Get current user rating or create
             if let Some(rating) = self.user_ratings.get((id, caller)) {
+                let previous_user_rating: i8 = rating;
                 if rating == 0 {
                     return Err(AzSmartContractMetadataHubError::Already(
                         "Neutral".to_string(),
@@ -184,13 +213,21 @@ mod az_smart_contract_metadata_hub {
                 } else {
                     record.dislikes -= 1
                 }
+                self.records.update(&record);
+                self.user_ratings.insert((id, caller), &0);
+
+                // emit event
+                self.env().emit_event(Rate {
+                    id: record.id,
+                    previous_user_rating,
+                    current_user_rating: -1,
+                    user: caller,
+                });
             } else {
                 return Err(AzSmartContractMetadataHubError::Already(
                     "Neutral".to_string(),
                 ));
             }
-            self.records.update(&record);
-            self.user_ratings.insert((id, caller), &0);
 
             Ok(record)
         }
