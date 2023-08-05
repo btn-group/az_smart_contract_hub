@@ -69,12 +69,6 @@ mod az_smart_contract_metadata_hub {
             url: String,
             environment: u8,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
-            if !(0..=1).contains(&environment) {
-                return Err(AzSmartContractMetadataHubError::OutOfRange(
-                    "Environment".to_string(),
-                ));
-            }
-
             let record: Record = Record {
                 id: self.length,
                 smart_contract_address,
@@ -128,6 +122,9 @@ mod az_smart_contract_metadata_hub {
         }
 
         // === HANDLES ===
+        // 0 == Production
+        // 1 == Testnet
+        // 2 == Smarknet
         #[ink(message)]
         pub fn create(
             &mut self,
@@ -281,21 +278,11 @@ mod az_smart_contract_metadata_hub {
         #[ink::test]
         fn test_create() {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
-            // when environment is greater than 1
-            let mut result =
-                az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string(), 2);
-            // * it raises an error
-            assert_eq!(
-                result,
-                Err(AzSmartContractMetadataHubError::OutOfRange(
-                    "Environment".to_string()
-                ))
-            );
-
             // when environment is within range
             az_smart_contract_metadata_hub.records.length = u32::MAX - 1;
             // * it stores the submitter as the caller
-            result = az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string(), 0);
+            let result =
+                az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string(), 0);
             let result_unwrapped = result.unwrap();
             // * it stores the id as the current length
             assert_eq!(result_unwrapped.id, u32::MAX - 1);
