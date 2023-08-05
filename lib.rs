@@ -48,6 +48,7 @@ mod az_smart_contract_metadata_hub {
         id: u32,
         smart_contract_address: AccountId,
         url: String,
+        environment: u8,
         likes: u16,
         dislikes: u16,
         submitter: AccountId,
@@ -66,11 +67,19 @@ mod az_smart_contract_metadata_hub {
             smart_contract_address: AccountId,
             submitter: AccountId,
             url: String,
+            environment: u8,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
+            if !(0..=1).contains(&environment) {
+                return Err(AzSmartContractMetadataHubError::OutOfRange(
+                    "Environment".to_string(),
+                ));
+            }
+
             let record: Record = Record {
                 id: self.length,
                 smart_contract_address,
                 url,
+                environment,
                 likes: 1,
                 dislikes: 0,
                 submitter,
@@ -124,11 +133,12 @@ mod az_smart_contract_metadata_hub {
             &mut self,
             smart_contract_address: AccountId,
             url: String,
+            environment: u8,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             let caller: AccountId = Self::env().caller();
             let record: Record =
                 self.records
-                    .create(smart_contract_address, caller, url.clone())?;
+                    .create(smart_contract_address, caller, url.clone(), environment)?;
             self.user_ratings.insert((record.id, caller), &1);
 
             // emit event
@@ -261,7 +271,7 @@ mod az_smart_contract_metadata_hub {
             // = when record exists
             let record: Record = az_smart_contract_metadata_hub
                 .records
-                .create(accounts.alice, accounts.bob, MOCK_URL.to_string())
+                .create(accounts.alice, accounts.bob, MOCK_URL.to_string(), 0)
                 .unwrap();
             // = * it returns the record
             assert_eq!(az_smart_contract_metadata_hub.show(record.id), Ok(record));
@@ -271,10 +281,21 @@ mod az_smart_contract_metadata_hub {
         #[ink::test]
         fn test_create() {
             let (accounts, mut az_smart_contract_metadata_hub) = init();
+            // when environment is greater than 1
+            let mut result =
+                az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string(), 2);
+            // * it raises an error
+            assert_eq!(
+                result,
+                Err(AzSmartContractMetadataHubError::OutOfRange(
+                    "Environment".to_string()
+                ))
+            );
+
+            // when environment is within range
             az_smart_contract_metadata_hub.records.length = u32::MAX - 1;
             // * it stores the submitter as the caller
-            let result =
-                az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string());
+            result = az_smart_contract_metadata_hub.create(accounts.alice, MOCK_URL.to_string(), 0);
             let result_unwrapped = result.unwrap();
             // * it stores the id as the current length
             assert_eq!(result_unwrapped.id, u32::MAX - 1);
@@ -321,7 +342,7 @@ mod az_smart_contract_metadata_hub {
 
             // = when record exists
             az_smart_contract_metadata_hub
-                .create(accounts.alice, MOCK_URL.to_string())
+                .create(accounts.alice, MOCK_URL.to_string(), 1)
                 .unwrap();
             // == when new rating is less than -1
             result = az_smart_contract_metadata_hub.rate(0, -2);
@@ -479,7 +500,7 @@ mod az_smart_contract_metadata_hub {
 
             // = when record exists
             az_smart_contract_metadata_hub
-                .create(accounts.alice, MOCK_URL.to_string())
+                .create(accounts.alice, MOCK_URL.to_string(), 0)
                 .unwrap();
             // == when called by non-submitter
             set_caller::<DefaultEnvironment>(accounts.charlie);
