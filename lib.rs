@@ -20,6 +20,7 @@ mod az_smart_contract_metadata_hub {
     pub struct Create {
         id: u32,
         smart_contract_address: AccountId,
+        url: String,
         submitter: AccountId,
     }
 
@@ -125,13 +126,16 @@ mod az_smart_contract_metadata_hub {
             url: String,
         ) -> Result<Record, AzSmartContractMetadataHubError> {
             let caller: AccountId = Self::env().caller();
-            let record: Record = self.records.create(smart_contract_address, caller, url)?;
+            let record: Record =
+                self.records
+                    .create(smart_contract_address, caller, url.clone())?;
             self.user_ratings.insert((record.id, caller), &1);
 
             // emit event
             self.env().emit_event(Create {
                 id: record.id,
                 smart_contract_address,
+                url,
                 submitter: caller,
             });
 
