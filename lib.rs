@@ -52,14 +52,16 @@ mod az_smart_contract_hub {
     // === CONTRACT ===
     #[ink(storage)]
     pub struct AZSmartContractHub {
+        az_groups_address: AccountId,
         azero_id_address: AccountId,
         smart_contracts: Mapping<u32, SmartContract>,
         smart_contracts_count: u32,
     }
     impl AZSmartContractHub {
         #[ink(constructor)]
-        pub fn new(azero_id_address: AccountId) -> Self {
+        pub fn new(azero_id_address: AccountId, az_groups_address: AccountId) -> Self {
             Self {
+                az_groups_address,
                 azero_id_address,
                 smart_contracts: Mapping::default(),
                 smart_contracts_count: 0,
@@ -157,7 +159,7 @@ mod az_smart_contract_hub {
         fn init() -> (DefaultAccounts<DefaultEnvironment>, AZSmartContractHub) {
             let accounts = default_accounts();
             set_caller::<DefaultEnvironment>(accounts.bob);
-            let az_smart_contract_hub = AZSmartContractHub::new(accounts.frank);
+            let az_smart_contract_hub = AZSmartContractHub::new(accounts.frank, accounts.eve);
             (accounts, az_smart_contract_hub)
         }
 
