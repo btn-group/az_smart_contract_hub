@@ -18,24 +18,30 @@ mod az_smart_contract_hub {
     // === EVENTS ===
     #[ink(event)]
     pub struct Create {
+        #[ink(topic)]
         id: u32,
+        #[ink(topic)]
         smart_contract_address: AccountId,
         url: String,
         environment: u8,
+        #[ink(topic)]
         caller: AccountId,
     }
 
     #[ink(event)]
     pub struct Toggle {
+        #[ink(topic)]
         id: u32,
         enabled: bool,
     }
 
     #[ink(event)]
     pub struct Rate {
+        #[ink(topic)]
         id: u32,
         previous_user_rating: i8,
         new_user_rating: i8,
+        #[ink(topic)]
         user: AccountId,
     }
 
