@@ -1,15 +1,5 @@
 <!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://github.com/btn-group">
-    <img src="images/logo.png" alt="Logo" height="80">
-  </a>
-
-  <h3 align="center">Smart Contract Metadata Hub Smart Contract</h3>
-  <p align="center">
-    <a href="https://btn-group-hackathon.herokuapp.com/" target="_blank">Try it out</a>
-  </p>
-</div>
+# AZ Smart Contract Hub
 
 <!-- TABLE OF CONTENTS -->
 <details>
