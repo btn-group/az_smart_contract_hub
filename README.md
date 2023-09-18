@@ -75,3 +75,8 @@ substrate-contracts-node
 You can interact with your node using the [Contracts UI](https://contracts-ui.substrate.io/). Once you have the webpage open, click on the dropdown selector at the top left corner and choose "Local Node".
 
 Note that blocks are only created when you execute a function in substrate-contracts-node, so trigger a another function first if a function depends on a time delay.
+
+## References
+
+1. https://docs.azero.id/developers/deployments#metadata
+2. https://github.com/azero-id/resolver

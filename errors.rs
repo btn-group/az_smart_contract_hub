@@ -10,7 +10,6 @@ pub enum AZSmartContractHubError {
     InkEnvError(String),
     NotFound(String),
     Unauthorised,
-    Unchanged(String),
     AZGroupsError(AZGroupsError),
 }
 impl From<AZGroupsError> for AZSmartContractHubError {

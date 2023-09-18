@@ -26,10 +26,12 @@ mod az_smart_contract_hub {
     }
 
     #[ink(event)]
-    pub struct Toggle {
+    pub struct Update {
         #[ink(topic)]
         id: u32,
         enabled: bool,
+        azero_id_domain: String,
+        group_id: Option<u32>,
     }
 
     // === STRUCTS ===
@@ -91,6 +93,7 @@ mod az_smart_contract_hub {
         // 0 == Production
         // 1 == Testnet
         // 2 == Smarknet
+        #[allow(clippy::too_many_arguments)]
         #[ink(message)]
         pub fn create(
             &mut self,
@@ -146,28 +149,42 @@ mod az_smart_contract_hub {
         }
 
         #[ink(message)]
-        pub fn toggle_enabled(
+        pub fn update(
             &mut self,
             id: u32,
             enabled: bool,
+            azero_id_domain: String,
+            group_id: Option<u32>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
             let mut smart_contract: SmartContract = self.show(id)?;
             let caller: AccountId = Self::env().caller();
             if caller != smart_contract.caller {
                 return Err(AZSmartContractHubError::Unauthorised);
             }
-            if smart_contract.enabled == enabled {
-                return Err(AZSmartContractHubError::Unchanged("Enabled".to_string()));
-            }
 
             smart_contract.enabled = enabled;
+            if smart_contract.azero_id_domain != azero_id_domain {
+                if caller != self.address_by_domain(azero_id_domain.clone())? {
+                    return Err(AZSmartContractHubError::Unauthorised);
+                }
+                smart_contract.azero_id_domain = azero_id_domain.clone()
+            };
+            if let Some(group_id_unwrapped) = group_id {
+                let group_user: GroupUser = self.group_users_show(group_id_unwrapped, caller)?;
+                if group_user.role == 0 {
+                    return Err(AZSmartContractHubError::Unauthorised);
+                }
+            };
+            smart_contract.group_id = group_id;
             self.smart_contracts
                 .insert(smart_contract.id, &smart_contract);
 
             // emit event
-            self.env().emit_event(Toggle {
+            self.env().emit_event(Update {
                 id: smart_contract.id,
                 enabled: smart_contract.enabled,
+                azero_id_domain,
+                group_id,
             });
 
             Ok(smart_contract)
@@ -307,11 +324,11 @@ mod az_smart_contract_hub {
     // }
 
     // #[ink::test]
-    // fn test_toggle_enabled() {
+    // fn test_update() {
     //     let (accounts, mut az_smart_contract_hub) = init();
     //     // = when smart_contract doesn't exist
     //     // = * it raises an error
-    //     let mut result = az_smart_contract_hub.toggle_enabled(0, false);
+    //     let mut result = az_smart_contract_hub.update(0, false);
     //     assert_eq!(
     //         result,
     //         Err(AZSmartContractHubError::NotFound(
@@ -331,34 +348,34 @@ mod az_smart_contract_hub {
     //     // == when called by non-caller
     //     set_caller::<DefaultEnvironment>(accounts.charlie);
     //     // == * it raises an error
-    //     result = az_smart_contract_hub.toggle_enabled(0, false);
+    //     result = az_smart_contract_hub.update(0, false);
     //     assert_eq!(result, Err(AZSmartContractHubError::Unauthorised));
     //     // == when called by caller
     //     set_caller::<DefaultEnvironment>(accounts.bob);
     //     // === when smart_contract is already enabled
     //     // ==== when the user tries to enable
     //     // ==== * it raises an error
-    //     result = az_smart_contract_hub.toggle_enabled(0, true);
+    //     result = az_smart_contract_hub.update(0, true);
     //     assert_eq!(
     //         result,
     //         Err(AZSmartContractHubError::Unchanged("Enabled".to_string()))
     //     );
     //     // ==== when the user tries to disable
     //     // ==== * it updates the smart_contract enabled to false
-    //     result = az_smart_contract_hub.toggle_enabled(0, false);
+    //     result = az_smart_contract_hub.update(0, false);
     //     assert_eq!(result.unwrap().enabled, false);
 
     //     // === when smart_contract is already disabled
     //     // ==== when the user tries to disable
     //     // ==== * it raises an error
-    //     result = az_smart_contract_hub.toggle_enabled(0, false);
+    //     result = az_smart_contract_hub.update(0, false);
     //     assert_eq!(
     //         result,
     //         Err(AZSmartContractHubError::Unchanged("Enabled".to_string()))
     //     );
     //     // ==== when the user tries to enable
     //     // ==== * it updates the smart_contract enabled to true
-    //     result = az_smart_contract_hub.toggle_enabled(0, true);
+    //     result = az_smart_contract_hub.update(0, true);
     //     assert_eq!(result.unwrap().enabled, true);
     // }
     // }
