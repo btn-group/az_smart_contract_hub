@@ -1,18 +1,12 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
+mod errors;
+
 #[ink::contract]
 mod az_smart_contract_hub {
+    use crate::errors::{AZGroupsError, AZSmartContractHubError};
     use ink::prelude::string::{String, ToString};
     use ink::storage::Mapping;
-
-    // === ENUMS ===
-    #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    pub enum AZSmartContractHubError {
-        NotFound(String),
-        Unauthorised,
-        Unchanged(String),
-    }
 
     // === EVENTS ===
     #[ink(event)]
@@ -26,6 +20,7 @@ mod az_smart_contract_hub {
         #[ink(topic)]
         caller: AccountId,
         azero_id_domain: String,
+        group_id: Option<u32>,
     }
 
     #[ink(event)]
@@ -36,6 +31,11 @@ mod az_smart_contract_hub {
     }
 
     // === STRUCTS ===
+    #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
+    struct GroupUser {
+        role: u8,
+    }
+
     #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
     #[cfg_attr(
         feature = "std",
@@ -49,6 +49,7 @@ mod az_smart_contract_hub {
         caller: AccountId,
         enabled: bool,
         azero_id_domain: String,
+        group_id: Option<u32>,
     }
 
     // === CONTRACT ===
@@ -93,10 +94,17 @@ mod az_smart_contract_hub {
             url: String,
             environment: u8,
             azero_id_domain: String,
+            group_id: Option<u32>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
             let caller: AccountId = Self::env().caller();
-            if caller != self.get_address_by_domain(azero_id_domain.clone())? {
+            if caller != self.address_by_domain(azero_id_domain.clone())? {
                 return Err(AZSmartContractHubError::Unauthorised);
+            }
+            if let Some(group_id_unwrapped) = group_id {
+                let group_user: GroupUser = self.group_users_show(group_id_unwrapped, caller)?;
+                if group_user.role == 0 {
+                    return Err(AZSmartContractHubError::Unauthorised);
+                }
             }
 
             let smart_contract: SmartContract = SmartContract {
@@ -107,6 +115,7 @@ mod az_smart_contract_hub {
                 caller: Self::env().caller(),
                 enabled: true,
                 azero_id_domain: azero_id_domain.clone(),
+                group_id,
             };
             self.smart_contracts
                 .insert(self.smart_contracts_count, &smart_contract);
@@ -120,6 +129,7 @@ mod az_smart_contract_hub {
                 environment,
                 caller,
                 azero_id_domain,
+                group_id,
             });
 
             Ok(smart_contract)
@@ -153,10 +163,7 @@ mod az_smart_contract_hub {
             Ok(smart_contract)
         }
 
-        fn get_address_by_domain(
-            &self,
-            domain: String,
-        ) -> Result<AccountId, AZSmartContractHubError> {
+        fn address_by_domain(&self, domain: String) -> Result<AccountId, AZSmartContractHubError> {
             match cfg!(test) {
                 true => unimplemented!(
                     "`invoke_contract()` not being supported (tests end up panicking)"
@@ -180,6 +187,33 @@ mod az_smart_contract_hub {
                     } else {
                         Err(AZSmartContractHubError::NotFound("Domain".to_string()))
                     }
+                }
+            }
+        }
+
+        fn group_users_show(
+            &self,
+            group_id: u32,
+            user: AccountId,
+        ) -> Result<GroupUser, AZSmartContractHubError> {
+            match cfg!(test) {
+                true => unimplemented!(
+                    "`invoke_contract()` not being supported (tests end up panicking)"
+                ),
+                false => {
+                    use ink::env::call::{build_call, ExecutionInput, Selector};
+
+                    const GROUP_USERS_SHOW_SELECTOR: [u8; 4] =
+                        ink::selector_bytes!("group_users_show");
+                    Ok(build_call::<Environment>()
+                        .call(self.az_groups_address)
+                        .exec_input(
+                            ExecutionInput::new(Selector::new(GROUP_USERS_SHOW_SELECTOR))
+                                .push_arg(group_id)
+                                .push_arg(user),
+                        )
+                        .returns::<core::result::Result<GroupUser, AZGroupsError>>()
+                        .invoke()?)
                 }
             }
         }
