@@ -15,11 +15,13 @@ mod az_smart_contract_hub {
         id: u32,
         #[ink(topic)]
         smart_contract_address: AccountId,
-        url: String,
         environment: u8,
         #[ink(topic)]
         caller: AccountId,
         azero_id_domain: String,
+        link_to_abi: String,
+        link_to_contract: Option<String>,
+        link_to_wasm: Option<String>,
         group_id: Option<u32>,
     }
 
@@ -44,11 +46,13 @@ mod az_smart_contract_hub {
     pub struct SmartContract {
         id: u32,
         smart_contract_address: AccountId,
-        url: String,
         environment: u8,
         caller: AccountId,
         enabled: bool,
         azero_id_domain: String,
+        link_to_abi: String,
+        link_to_contract: Option<String>,
+        link_to_wasm: Option<String>,
         group_id: Option<u32>,
     }
 
@@ -91,9 +95,11 @@ mod az_smart_contract_hub {
         pub fn create(
             &mut self,
             smart_contract_address: AccountId,
-            url: String,
             environment: u8,
             azero_id_domain: String,
+            link_to_abi: String,
+            link_to_contract: Option<String>,
+            link_to_wasm: Option<String>,
             group_id: Option<u32>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
             let caller: AccountId = Self::env().caller();
@@ -110,12 +116,14 @@ mod az_smart_contract_hub {
             let smart_contract: SmartContract = SmartContract {
                 id: self.smart_contracts_count,
                 smart_contract_address,
-                url: url.clone(),
                 environment,
                 caller: Self::env().caller(),
                 enabled: true,
                 azero_id_domain: azero_id_domain.clone(),
                 group_id,
+                link_to_abi: link_to_abi.clone(),
+                link_to_contract: link_to_contract.clone(),
+                link_to_wasm: link_to_wasm.clone(),
             };
             self.smart_contracts
                 .insert(self.smart_contracts_count, &smart_contract);
@@ -125,10 +133,12 @@ mod az_smart_contract_hub {
             self.env().emit_event(Create {
                 id: smart_contract.id,
                 smart_contract_address,
-                url,
                 environment,
                 caller,
                 azero_id_domain,
+                link_to_abi,
+                link_to_contract,
+                link_to_wasm,
                 group_id,
             });
 
@@ -228,7 +238,7 @@ mod az_smart_contract_hub {
     //     };
 
     // const MOCK_AZERO_ID: &str = "OnionKnight";
-    // const MOCK_URL: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
+    // const MOCK_LINK_TO_ABI: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
 
     // === HELPERS ===
     // fn init() -> (DefaultAccounts<DefaultEnvironment>, AZSmartContractHub) {
@@ -255,7 +265,7 @@ mod az_smart_contract_hub {
     //     let smart_contract: SmartContract = az_smart_contract_hub
     //         .create(
     //             accounts.alice,
-    //             MOCK_URL.to_string(),
+    //             MOCK_LINK_TO_ABI.to_string(),
     //             0,
     //             MOCK_AZERO_ID.to_string(),
     //         )
@@ -276,7 +286,7 @@ mod az_smart_contract_hub {
     //     // * it stores the caller as the caller
     //     let result = az_smart_contract_hub.create(
     //         accounts.alice,
-    //         MOCK_URL.to_string(),
+    //         MOCK_LINK_TO_ABI.to_string(),
     //         0,
     //         MOCK_AZERO_ID.to_string(),
     //     );
@@ -313,7 +323,7 @@ mod az_smart_contract_hub {
     //     az_smart_contract_hub
     //         .create(
     //             accounts.alice,
-    //             MOCK_URL.to_string(),
+    //             MOCK_LINK_TO_ABI.to_string(),
     //             0,
     //             MOCK_AZERO_ID.to_string(),
     //         )
