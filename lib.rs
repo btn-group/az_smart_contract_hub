@@ -20,6 +20,9 @@ mod az_smart_contract_hub {
         #[ink(topic)]
         caller: AccountId,
         azero_id_domain: String,
+        link_to_abi: String,
+        link_to_contract: Option<String>,
+        link_to_wasm: Option<String>,
         group_id: Option<u32>,
     }
 
@@ -49,6 +52,9 @@ mod az_smart_contract_hub {
         caller: AccountId,
         enabled: bool,
         azero_id_domain: String,
+        link_to_abi: String,
+        link_to_contract: Option<String>,
+        link_to_wasm: Option<String>,
         group_id: Option<u32>,
     }
 
@@ -94,6 +100,9 @@ mod az_smart_contract_hub {
             url: String,
             environment: u8,
             azero_id_domain: String,
+            link_to_abi: String,
+            link_to_contract: Option<String>,
+            link_to_wasm: Option<String>,
             group_id: Option<u32>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
             let caller: AccountId = Self::env().caller();
@@ -116,6 +125,9 @@ mod az_smart_contract_hub {
                 enabled: true,
                 azero_id_domain: azero_id_domain.clone(),
                 group_id,
+                link_to_abi: link_to_abi.clone(),
+                link_to_contract: link_to_contract.clone(),
+                link_to_wasm: link_to_wasm.clone(),
             };
             self.smart_contracts
                 .insert(self.smart_contracts_count, &smart_contract);
@@ -129,6 +141,9 @@ mod az_smart_contract_hub {
                 environment,
                 caller,
                 azero_id_domain,
+                link_to_abi,
+                link_to_contract,
+                link_to_wasm,
                 group_id,
             });
 
