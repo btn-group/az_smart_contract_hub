@@ -105,6 +105,11 @@ mod az_smart_contract_hub {
             link_to_wasm: Option<String>,
             group_id: Option<u32>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
+            if self.smart_contracts_count == u32::MAX {
+                return Err(AZSmartContractHubError::UnprocessableEntity(
+                    "Smart contract limit reached".to_string(),
+                ));
+            }
             let caller: AccountId = Self::env().caller();
             if caller != self.address_by_domain(azero_id_domain.clone())? {
                 return Err(AZSmartContractHubError::Unauthorised);
