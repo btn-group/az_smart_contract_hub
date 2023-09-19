@@ -62,16 +62,16 @@ mod az_smart_contract_hub {
     #[ink(storage)]
     pub struct AZSmartContractHub {
         az_groups_address: AccountId,
-        azero_id_router_address: AccountId,
+        azero_id_registry_address: AccountId,
         smart_contracts: Mapping<u32, SmartContract>,
         smart_contracts_count: u32,
     }
     impl AZSmartContractHub {
         #[ink(constructor)]
-        pub fn new(azero_id_router_address: AccountId, az_groups_address: AccountId) -> Self {
+        pub fn new(azero_id_registry_address: AccountId, az_groups_address: AccountId) -> Self {
             Self {
                 az_groups_address,
-                azero_id_router_address,
+                azero_id_registry_address,
                 smart_contracts: Mapping::default(),
                 smart_contracts_count: 0,
             }
@@ -205,7 +205,7 @@ mod az_smart_contract_hub {
                     // const GET_ADDRESS_SELECTOR: [u8; 4] = [0xD2, 0x59, 0xF7, 0xBA];
                     const GET_ADDRESS_SELECTOR: [u8; 4] = ink::selector_bytes!("get_address");
                     let result = build_call::<Environment>()
-                        .call(self.azero_id_router_address)
+                        .call(self.azero_id_registry_address)
                         .exec_input(
                             ExecutionInput::new(Selector::new(GET_ADDRESS_SELECTOR))
                                 .push_arg(domain),
