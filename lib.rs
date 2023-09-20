@@ -1,10 +1,12 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 mod errors;
+mod validations;
 
 #[ink::contract]
 mod az_smart_contract_hub {
     use crate::errors::{AZGroupsError, AZSmartContractHubError};
+    use crate::validations::validate_presence_of;
     use ink::prelude::string::{String, ToString};
     use ink::storage::Mapping;
 
@@ -120,6 +122,8 @@ mod az_smart_contract_hub {
                     return Err(AZSmartContractHubError::Unauthorised);
                 }
             }
+            let link_to_abi_formatted: String = self.format_url(link_to_abi);
+            validate_presence_of(&link_to_abi_formatted, "Link to abi")?;
 
             let smart_contract: SmartContract = SmartContract {
                 id: self.smart_contracts_count,
@@ -129,7 +133,7 @@ mod az_smart_contract_hub {
                 enabled: true,
                 azero_id_domain: azero_id_domain.clone(),
                 group_id,
-                link_to_abi: link_to_abi.clone(),
+                link_to_abi: link_to_abi_formatted.clone(),
                 link_to_contract: link_to_contract.clone(),
                 link_to_wasm: link_to_wasm.clone(),
             };
@@ -144,7 +148,7 @@ mod az_smart_contract_hub {
                 environment,
                 caller,
                 azero_id_domain,
-                link_to_abi,
+                link_to_abi: link_to_abi_formatted,
                 link_to_contract,
                 link_to_wasm,
                 group_id,
@@ -221,6 +225,10 @@ mod az_smart_contract_hub {
                     }
                 }
             }
+        }
+
+        fn format_url(&self, url: String) -> String {
+            url.trim().to_string()
         }
 
         fn group_users_show(
