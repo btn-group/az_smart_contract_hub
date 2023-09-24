@@ -25,6 +25,10 @@ mod az_smart_contract_hub {
         link_to_contract: Option<String>,
         link_to_wasm: Option<String>,
         group_id: Option<u32>,
+        project_name: Option<String>,
+        project_website: Option<String>,
+        github: Option<String>,
+        audit_link: Option<String>,
     }
 
     #[ink(event)]
@@ -34,6 +38,10 @@ mod az_smart_contract_hub {
         enabled: bool,
         azero_id_domain: String,
         group_id: Option<u32>,
+        project_name: Option<String>,
+        project_website: Option<String>,
+        github: Option<String>,
+        audit_link: Option<String>,
     }
 
     // === STRUCTS ===
@@ -66,6 +74,10 @@ mod az_smart_contract_hub {
         link_to_contract: Option<String>,
         link_to_wasm: Option<String>,
         group_id: Option<u32>,
+        project_name: Option<String>,
+        project_website: Option<String>,
+        github: Option<String>,
+        audit_link: Option<String>,
     }
 
     // === CONTRACT ===
@@ -123,6 +135,10 @@ mod az_smart_contract_hub {
             link_to_contract: Option<String>,
             link_to_wasm: Option<String>,
             group_id: Option<u32>,
+            project_name: Option<String>,
+            project_website: Option<String>,
+            github: Option<String>,
+            audit_link: Option<String>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
             if self.smart_contracts_count == u32::MAX {
                 return Err(AZSmartContractHubError::UnprocessableEntity(
@@ -153,6 +169,10 @@ mod az_smart_contract_hub {
                 link_to_abi: link_to_abi_formatted.clone(),
                 link_to_contract: link_to_contract.clone(),
                 link_to_wasm: link_to_wasm.clone(),
+                project_name: project_name.clone(),
+                project_website: project_website.clone(),
+                github: github.clone(),
+                audit_link: audit_link.clone(),
             };
             self.smart_contracts
                 .insert(self.smart_contracts_count, &smart_contract);
@@ -169,11 +189,16 @@ mod az_smart_contract_hub {
                 link_to_contract,
                 link_to_wasm,
                 group_id,
+                project_name,
+                project_website,
+                github,
+                audit_link,
             });
 
             Ok(smart_contract)
         }
 
+        #[allow(clippy::too_many_arguments)]
         #[ink(message)]
         pub fn update(
             &mut self,
@@ -181,6 +206,10 @@ mod az_smart_contract_hub {
             enabled: bool,
             azero_id_domain: String,
             group_id: Option<u32>,
+            project_name: Option<String>,
+            project_website: Option<String>,
+            github: Option<String>,
+            audit_link: Option<String>,
         ) -> Result<SmartContract, AZSmartContractHubError> {
             let mut smart_contract: SmartContract = self.show(id)?;
             let caller: AccountId = Self::env().caller();
@@ -202,6 +231,10 @@ mod az_smart_contract_hub {
                 }
             };
             smart_contract.group_id = group_id;
+            smart_contract.project_name = project_name.clone();
+            smart_contract.project_website = project_website.clone();
+            smart_contract.github = github.clone();
+            smart_contract.audit_link = audit_link.clone();
             self.smart_contracts
                 .insert(smart_contract.id, &smart_contract);
 
@@ -211,6 +244,10 @@ mod az_smart_contract_hub {
                 enabled: smart_contract.enabled,
                 azero_id_domain,
                 group_id,
+                project_name,
+                project_website,
+                github,
+                audit_link,
             });
 
             Ok(smart_contract)
