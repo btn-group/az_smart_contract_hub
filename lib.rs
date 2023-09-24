@@ -21,10 +21,10 @@ mod az_smart_contract_hub {
         #[ink(topic)]
         caller: AccountId,
         azero_id_domain: String,
-        link_to_abi: String,
-        link_to_contract: Option<String>,
-        link_to_wasm: Option<String>,
-        link_to_audit: Option<String>,
+        abi_url: String,
+        contract_url: Option<String>,
+        wasm_url: Option<String>,
+        audit_url: Option<String>,
         group_id: Option<u32>,
         project_name: Option<String>,
         project_website: Option<String>,
@@ -37,7 +37,7 @@ mod az_smart_contract_hub {
         id: u32,
         enabled: bool,
         azero_id_domain: String,
-        link_to_audit: Option<String>,
+        audit_url: Option<String>,
         group_id: Option<u32>,
         project_name: Option<String>,
         project_website: Option<String>,
@@ -70,10 +70,10 @@ mod az_smart_contract_hub {
         caller: AccountId,
         enabled: bool,
         azero_id_domain: String,
-        link_to_abi: String,
-        link_to_contract: Option<String>,
-        link_to_wasm: Option<String>,
-        link_to_audit: Option<String>,
+        abi_url: String,
+        contract_url: Option<String>,
+        wasm_url: Option<String>,
+        audit_url: Option<String>,
         group_id: Option<u32>,
         project_name: Option<String>,
         project_website: Option<String>,
@@ -131,10 +131,10 @@ mod az_smart_contract_hub {
             smart_contract_address: AccountId,
             environment: u8,
             azero_id_domain: String,
-            link_to_abi: String,
-            link_to_contract: Option<String>,
-            link_to_wasm: Option<String>,
-            link_to_audit: Option<String>,
+            abi_url: String,
+            contract_url: Option<String>,
+            wasm_url: Option<String>,
+            audit_url: Option<String>,
             group_id: Option<u32>,
             project_name: Option<String>,
             project_website: Option<String>,
@@ -155,8 +155,8 @@ mod az_smart_contract_hub {
                     return Err(AZSmartContractHubError::Unauthorised);
                 }
             }
-            let link_to_abi_formatted: String = self.format_url(link_to_abi);
-            validate_presence_of(&link_to_abi_formatted, "Link to abi")?;
+            let abi_url_formatted: String = self.format_url(abi_url);
+            validate_presence_of(&abi_url_formatted, "Link to abi")?;
 
             let smart_contract: SmartContract = SmartContract {
                 id: self.smart_contracts_count,
@@ -166,10 +166,10 @@ mod az_smart_contract_hub {
                 enabled: true,
                 azero_id_domain: azero_id_domain.clone(),
                 group_id,
-                link_to_abi: link_to_abi_formatted.clone(),
-                link_to_contract: link_to_contract.clone(),
-                link_to_wasm: link_to_wasm.clone(),
-                link_to_audit: link_to_audit.clone(),
+                abi_url: abi_url_formatted.clone(),
+                contract_url: contract_url.clone(),
+                wasm_url: wasm_url.clone(),
+                audit_url: audit_url.clone(),
                 project_name: project_name.clone(),
                 project_website: project_website.clone(),
                 github: github.clone(),
@@ -185,10 +185,10 @@ mod az_smart_contract_hub {
                 environment,
                 caller,
                 azero_id_domain,
-                link_to_abi: link_to_abi_formatted,
-                link_to_contract,
-                link_to_wasm,
-                link_to_audit,
+                abi_url: abi_url_formatted,
+                contract_url,
+                wasm_url,
+                audit_url,
                 group_id,
                 project_name,
                 project_website,
@@ -206,7 +206,7 @@ mod az_smart_contract_hub {
             enabled: bool,
             azero_id_domain: String,
             group_id: Option<u32>,
-            link_to_audit: Option<String>,
+            audit_url: Option<String>,
             project_name: Option<String>,
             project_website: Option<String>,
             github: Option<String>,
@@ -234,7 +234,7 @@ mod az_smart_contract_hub {
             smart_contract.project_name = project_name.clone();
             smart_contract.project_website = project_website.clone();
             smart_contract.github = github.clone();
-            smart_contract.link_to_audit = link_to_audit.clone();
+            smart_contract.audit_url = audit_url.clone();
             self.smart_contracts
                 .insert(smart_contract.id, &smart_contract);
 
@@ -247,7 +247,7 @@ mod az_smart_contract_hub {
                 project_name,
                 project_website,
                 github,
-                link_to_audit,
+                audit_url,
             });
 
             Ok(smart_contract)
@@ -322,7 +322,7 @@ mod az_smart_contract_hub {
         };
 
         // const MOCK_AZERO_ID: &str = "OnionKnight";
-        // const MOCK_LINK_TO_ABI: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
+        // const MOCK_ABI_URL: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
 
         // === HELPERS ===
         fn init() -> (DefaultAccounts<DefaultEnvironment>, AZSmartContractHub) {
@@ -359,7 +359,7 @@ mod az_smart_contract_hub {
         //     let smart_contract: SmartContract = az_smart_contract_hub
         //         .create(
         //             accounts.alice,
-        //             MOCK_LINK_TO_ABI.to_string(),
+        //             MOCK_ABI_URL.to_string(),
         //             0,
         //             MOCK_AZERO_ID.to_string(),
         //         )
@@ -380,7 +380,7 @@ mod az_smart_contract_hub {
         //     // * it stores the caller as the caller
         //     let result = az_smart_contract_hub.create(
         //         accounts.alice,
-        //         MOCK_LINK_TO_ABI.to_string(),
+        //         MOCK_ABI_URL.to_string(),
         //         0,
         //         MOCK_AZERO_ID.to_string(),
         //     );
@@ -417,7 +417,7 @@ mod az_smart_contract_hub {
         //     az_smart_contract_hub
         //         .create(
         //             accounts.alice,
-        //             MOCK_LINK_TO_ABI.to_string(),
+        //             MOCK_ABI_URL.to_string(),
         //             0,
         //             MOCK_AZERO_ID.to_string(),
         //         )
