@@ -7,6 +7,7 @@ mod validations;
 mod az_smart_contract_hub {
     use crate::errors::{AZGroupsError, AZSmartContractHubError};
     use crate::validations::validate_presence_of;
+    use ink::env::call::{build_call, ExecutionInput, Selector};
     use ink::prelude::string::{String, ToString};
     use ink::storage::Mapping;
 
@@ -261,8 +262,6 @@ mod az_smart_contract_hub {
             match cfg!(test) {
                 true => Ok(self.env().caller()),
                 false => {
-                    use ink::env::call::{build_call, ExecutionInput, Selector};
-                    // const GET_ADDRESS_SELECTOR: [u8; 4] = [0xD2, 0x59, 0xF7, 0xBA];
                     const GET_ADDRESS_SELECTOR: [u8; 4] = ink::selector_bytes!("get_address");
                     let result = build_call::<Environment>()
                         .call(self.azero_id_router_address)
@@ -297,8 +296,6 @@ mod az_smart_contract_hub {
             match cfg!(test) {
                 true => Ok(Role::Member),
                 false => {
-                    use ink::env::call::{build_call, ExecutionInput, Selector};
-
                     const VALIDATE_MEMBERSHIP_SELECTOR: [u8; 4] =
                         ink::selector_bytes!("validate_membership");
                     Ok(build_call::<Environment>()
@@ -324,7 +321,13 @@ mod az_smart_contract_hub {
         };
 
         const MOCK_AZERO_ID: &str = "OnionKnight";
-        const MOCK_ABI_URL: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
+        const MOCK_ABI_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/tmuurccd5a7lcvin6ae9.json";
+        const MOCK_CONTRACT_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/vsvsvavdvavav.json";
+        const MOCK_WASM_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/ffbrgnteyjytntehthw34hhhwhwhwnq343.json";
+        const MOCK_AUDIT_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/mlkmkbdsbmdsb3rrg3m.json";
+        const MOCK_PROJECT_NAME: &str = "Smart Contract Hub";
+        const MOCK_PROJECT_WEBSITE: &str = "https://someprojectwebsite.org/projects/project-name";
+        const MOCK_GITHUB: &str = "https://github.com/smart-contract-hub/project-name";
 
         // === HELPERS ===
         fn init() -> (DefaultAccounts<DefaultEnvironment>, AZSmartContractHub) {
@@ -392,28 +395,57 @@ mod az_smart_contract_hub {
                 0,
                 MOCK_AZERO_ID.to_string(),
                 MOCK_ABI_URL.to_string(),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
+                Some(MOCK_CONTRACT_URL.to_string()),
+                Some(MOCK_WASM_URL.to_string()),
+                Some(MOCK_AUDIT_URL.to_string()),
+                Some(5),
+                Some(MOCK_PROJECT_NAME.to_string()),
+                Some(MOCK_PROJECT_WEBSITE.to_string()),
+                Some(MOCK_GITHUB.to_string()),
             );
             let result_unwrapped = result.unwrap();
             // * it stores the id as the current length
             assert_eq!(result_unwrapped.id, u32::MAX - 1);
             // * it increases the smart_contracts length by 1
             assert_eq!(az_smart_contract_hub.smart_contracts_count, u32::MAX);
-            // * it stores the submitted smart contract address
-            assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
-            // * it sets the caller to the caller
-            assert_eq!(result_unwrapped.caller, accounts.bob);
             // * it stores the smart_contract
             assert_eq!(
                 result_unwrapped,
                 az_smart_contract_hub.show(result_unwrapped.id).unwrap()
             );
+            // * it stores the submitted smart contract address
+            assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
+            // * it sets the environment
+            assert_eq!(result_unwrapped.environment, 0);
+            // * it sets the azero id domain
+            assert_eq!(result_unwrapped.azero_id_domain, MOCK_AZERO_ID.to_string());
+            // * it sets the abi url
+            assert_eq!(result_unwrapped.abi_url, MOCK_ABI_URL.to_string());
+            // * it sets the contract url
+            assert_eq!(
+                result_unwrapped.contract_url,
+                Some(MOCK_CONTRACT_URL.to_string())
+            );
+            // * it sets the wasm url
+            assert_eq!(result_unwrapped.wasm_url, Some(MOCK_WASM_URL.to_string()));
+            // * it sets the audit url
+            assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
+            // * it sets the group_id
+            assert_eq!(result_unwrapped.group_id, Some(5));
+            // * it sets the project name
+            assert_eq!(
+                result_unwrapped.project_name,
+                Some(MOCK_PROJECT_NAME.to_string())
+            );
+            // * it sets the project name
+            assert_eq!(
+                result_unwrapped.project_website,
+                Some(MOCK_PROJECT_WEBSITE.to_string())
+            );
+            // * it sets the github
+            assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
+            // * it sets the caller to the caller
+            assert_eq!(result_unwrapped.caller, accounts.bob);
         }
 
         #[ink::test]
