@@ -255,11 +255,11 @@ mod az_smart_contract_hub {
             Ok(smart_contract)
         }
 
+        // Can't write integration tests as azero.id has not made their contracts public.
+        // For testing always return the caller
         fn address_by_domain(&self, domain: String) -> Result<AccountId, AZSmartContractHubError> {
             match cfg!(test) {
-                true => unimplemented!(
-                    "`invoke_contract()` not being supported (tests end up panicking)"
-                ),
+                true => Ok(self.env().caller()),
                 false => {
                     use ink::env::call::{build_call, ExecutionInput, Selector};
                     // const GET_ADDRESS_SELECTOR: [u8; 4] = [0xD2, 0x59, 0xF7, 0xBA];
@@ -287,15 +287,15 @@ mod az_smart_contract_hub {
             url.trim().to_string()
         }
 
+        // I can write integration tests for this but I'm going to test non member responses manually.
+        // For tests always return Role::Member.
         fn validate_membership(
             &self,
             group_id: u32,
             account: AccountId,
         ) -> Result<Role, AZSmartContractHubError> {
             match cfg!(test) {
-                true => unimplemented!(
-                    "`invoke_contract()` not being supported (tests end up panicking)"
-                ),
+                true => Ok(Role::Member),
                 false => {
                     use ink::env::call::{build_call, ExecutionInput, Selector};
 
@@ -323,8 +323,8 @@ mod az_smart_contract_hub {
             DefaultEnvironment,
         };
 
-        // const MOCK_AZERO_ID: &str = "OnionKnight";
-        // const MOCK_ABI_URL: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
+        const MOCK_AZERO_ID: &str = "OnionKnight";
+        const MOCK_ABI_URL: &str = "https://res.cloudinary.com/xasdf123/raw/upload/v1690808298/smart_contract_metadata/tmuurccd5a7lcvin6ae9.json";
 
         // === HELPERS ===
         fn init() -> (DefaultAccounts<DefaultEnvironment>, AZSmartContractHub) {
@@ -346,116 +346,128 @@ mod az_smart_contract_hub {
             assert_eq!(config.smart_contracts_count, 0);
         }
 
-        // #[ink::test]
-        // fn test_show() {
-        //     let (accounts, mut az_smart_contract_hub) = init();
-        //     // = when smart_contract does not exist
-        //     // * it returns error
-        //     assert_eq!(
-        //         az_smart_contract_hub.show(0),
-        //         Err(AZSmartContractHubError::NotFound(
-        //             "SmartContract".to_string()
-        //         ))
-        //     );
-        //     // = when smart_contract exists
-        //     let smart_contract: SmartContract = az_smart_contract_hub
-        //         .create(
-        //             accounts.alice,
-        //             MOCK_ABI_URL.to_string(),
-        //             0,
-        //             MOCK_AZERO_ID.to_string(),
-        //         )
-        //         .unwrap();
-        //     // = * it returns the smart_contract
-        //     assert_eq!(
-        //         az_smart_contract_hub.show(smart_contract.id),
-        //         Ok(smart_contract)
-        //     );
-        // }
+        #[ink::test]
+        fn test_show() {
+            let (accounts, mut az_smart_contract_hub) = init();
+            // = when smart_contract does not exist
+            // * it returns error
+            assert_eq!(
+                az_smart_contract_hub.show(0),
+                Err(AZSmartContractHubError::NotFound(
+                    "SmartContract".to_string()
+                ))
+            );
+            // = when smart_contract exists
+            let smart_contract: SmartContract = az_smart_contract_hub
+                .create(
+                    accounts.alice,
+                    0,
+                    MOCK_AZERO_ID.to_string(),
+                    MOCK_ABI_URL.to_string(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .unwrap();
+            // = * it returns the smart_contract
+            assert_eq!(
+                az_smart_contract_hub.show(smart_contract.id),
+                Ok(smart_contract)
+            );
+        }
 
         // === TEST HANDLES ===
-        // #[ink::test]
-        // fn test_create() {
-        //     let (accounts, mut az_smart_contract_hub) = init();
-        //     // when environment is within range
-        //     az_smart_contract_hub.smart_contracts_count = u32::MAX - 1;
-        //     // * it stores the caller as the caller
-        //     let result = az_smart_contract_hub.create(
-        //         accounts.alice,
-        //         MOCK_ABI_URL.to_string(),
-        //         0,
-        //         MOCK_AZERO_ID.to_string(),
-        //     );
-        //     let result_unwrapped = result.unwrap();
-        //     // * it stores the id as the current length
-        //     assert_eq!(result_unwrapped.id, u32::MAX - 1);
-        //     // * it increases the smart_contracts length by 1
-        //     assert_eq!(az_smart_contract_hub.smart_contracts_count, u32::MAX);
-        //     // * it stores the submitted smart contract address
-        //     assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
-        //     // * it sets the caller to the caller
-        //     assert_eq!(result_unwrapped.caller, accounts.bob);
-        //     // * it stores the smart_contract
-        //     assert_eq!(
-        //         result_unwrapped,
-        //         az_smart_contract_hub.show(result_unwrapped.id).unwrap()
-        //     );
-        // }
+        #[ink::test]
+        fn test_create() {
+            let (accounts, mut az_smart_contract_hub) = init();
+            // when environment is within range
+            az_smart_contract_hub.smart_contracts_count = u32::MAX - 1;
+            // * it stores the caller as the caller
+            let result = az_smart_contract_hub.create(
+                accounts.alice,
+                0,
+                MOCK_AZERO_ID.to_string(),
+                MOCK_ABI_URL.to_string(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
+            let result_unwrapped = result.unwrap();
+            // * it stores the id as the current length
+            assert_eq!(result_unwrapped.id, u32::MAX - 1);
+            // * it increases the smart_contracts length by 1
+            assert_eq!(az_smart_contract_hub.smart_contracts_count, u32::MAX);
+            // * it stores the submitted smart contract address
+            assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
+            // * it sets the caller to the caller
+            assert_eq!(result_unwrapped.caller, accounts.bob);
+            // * it stores the smart_contract
+            assert_eq!(
+                result_unwrapped,
+                az_smart_contract_hub.show(result_unwrapped.id).unwrap()
+            );
+        }
 
-        // #[ink::test]
-        // fn test_update() {
-        //     let (accounts, mut az_smart_contract_hub) = init();
-        //     // = when smart_contract doesn't exist
-        //     // = * it raises an error
-        //     let mut result = az_smart_contract_hub.update(0, false);
-        //     assert_eq!(
-        //         result,
-        //         Err(AZSmartContractHubError::NotFound(
-        //             "SmartContract".to_string()
-        //         ))
-        //     );
+        #[ink::test]
+        fn test_update() {
+            let (accounts, mut az_smart_contract_hub) = init();
+            // = when smart_contract doesn't exist
+            // = * it raises an error
+            let mut result = az_smart_contract_hub.update(
+                0,
+                false,
+                MOCK_AZERO_ID.to_string(),
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::NotFound(
+                    "SmartContract".to_string()
+                ))
+            );
 
-        //     // = when smart_contract exists
-        //     az_smart_contract_hub
-        //         .create(
-        //             accounts.alice,
-        //             MOCK_ABI_URL.to_string(),
-        //             0,
-        //             MOCK_AZERO_ID.to_string(),
-        //         )
-        //         .unwrap();
-        //     // == when called by non-caller
-        //     set_caller::<DefaultEnvironment>(accounts.charlie);
-        //     // == * it raises an error
-        //     result = az_smart_contract_hub.update(0, false);
-        //     assert_eq!(result, Err(AZSmartContractHubError::Unauthorised));
-        //     // == when called by caller
-        //     set_caller::<DefaultEnvironment>(accounts.bob);
-        //     // === when smart_contract is already enabled
-        //     // ==== when the user tries to enable
-        //     // ==== * it raises an error
-        //     result = az_smart_contract_hub.update(0, true);
-        //     assert_eq!(
-        //         result,
-        //         Err(AZSmartContractHubError::Unchanged("Enabled".to_string()))
-        //     );
-        //     // ==== when the user tries to disable
-        //     // ==== * it updates the smart_contract enabled to false
-        //     result = az_smart_contract_hub.update(0, false);
-        //     assert_eq!(result.unwrap().enabled, false);
-
-        //     // === when smart_contract is already disabled
-        //     // ==== when the user tries to disable
-        //     // ==== * it raises an error
-        //     result = az_smart_contract_hub.update(0, false);
-        //     assert_eq!(
-        //         result,
-        //         Err(AZSmartContractHubError::Unchanged("Enabled".to_string()))
-        //     );
-        //     // ==== when the user tries to enable
-        //     // ==== * it updates the smart_contract enabled to true
-        //     result = az_smart_contract_hub.update(0, true);
-        //     assert_eq!(result.unwrap().enabled, true);
-        // }
+            // = when smart_contract exists
+            az_smart_contract_hub
+                .create(
+                    accounts.alice,
+                    0,
+                    MOCK_AZERO_ID.to_string(),
+                    MOCK_ABI_URL.to_string(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .unwrap();
+            // == when called by non-caller
+            set_caller::<DefaultEnvironment>(accounts.charlie);
+            // == * it raises an error
+            result = az_smart_contract_hub.update(
+                0,
+                false,
+                MOCK_AZERO_ID.to_string(),
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
+            assert_eq!(result, Err(AZSmartContractHubError::Unauthorised));
+        }
     }
 }
