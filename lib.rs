@@ -10,6 +10,16 @@ mod az_smart_contract_hub {
     use ink::prelude::string::{String, ToString};
     use ink::storage::Mapping;
 
+    // === ENUMS ===
+    #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
+    pub enum Role {
+        Banned,
+        Applicant,
+        Member,
+        Admin,
+        SuperAdmin,
+    }
+
     // === EVENTS ===
     #[ink(event)]
     pub struct Create {
@@ -150,10 +160,7 @@ mod az_smart_contract_hub {
                 return Err(AZSmartContractHubError::Unauthorised);
             }
             if let Some(group_id_unwrapped) = group_id {
-                let group_user: GroupUser = self.group_users_show(group_id_unwrapped, caller)?;
-                if group_user.role == 0 {
-                    return Err(AZSmartContractHubError::Unauthorised);
-                }
+                self.validate_membership(group_id_unwrapped, caller)?;
             }
             let abi_url_formatted: String = self.format_url(abi_url);
             validate_presence_of(&abi_url_formatted, "Link to abi")?;
@@ -225,10 +232,7 @@ mod az_smart_contract_hub {
                 smart_contract.azero_id_domain = azero_id_domain.clone()
             };
             if let Some(group_id_unwrapped) = group_id {
-                let group_user: GroupUser = self.group_users_show(group_id_unwrapped, caller)?;
-                if group_user.role == 0 {
-                    return Err(AZSmartContractHubError::Unauthorised);
-                }
+                self.validate_membership(group_id_unwrapped, caller)?;
             };
             smart_contract.group_id = group_id;
             smart_contract.project_name = project_name.clone();
@@ -285,11 +289,11 @@ mod az_smart_contract_hub {
             url.trim().to_string()
         }
 
-        fn group_users_show(
+        fn validate_membership(
             &self,
             group_id: u32,
-            user: AccountId,
-        ) -> Result<GroupUser, AZSmartContractHubError> {
+            account: AccountId,
+        ) -> Result<Role, AZSmartContractHubError> {
             match cfg!(test) {
                 true => unimplemented!(
                     "`invoke_contract()` not being supported (tests end up panicking)"
@@ -297,16 +301,16 @@ mod az_smart_contract_hub {
                 false => {
                     use ink::env::call::{build_call, ExecutionInput, Selector};
 
-                    const GROUP_USERS_SHOW_SELECTOR: [u8; 4] =
-                        ink::selector_bytes!("group_users_show");
+                    const VALIDATE_MEMBERSHIP_SELECTOR: [u8; 4] =
+                        ink::selector_bytes!("validate_membership");
                     Ok(build_call::<Environment>()
                         .call(self.az_groups_address)
                         .exec_input(
-                            ExecutionInput::new(Selector::new(GROUP_USERS_SHOW_SELECTOR))
+                            ExecutionInput::new(Selector::new(VALIDATE_MEMBERSHIP_SELECTOR))
                                 .push_arg(group_id)
-                                .push_arg(user),
+                                .push_arg(account),
                         )
-                        .returns::<core::result::Result<GroupUser, AZGroupsError>>()
+                        .returns::<core::result::Result<Role, AZGroupsError>>()
                         .invoke()?)
                 }
             }

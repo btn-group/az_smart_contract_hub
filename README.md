@@ -80,3 +80,4 @@ Note that blocks are only created when you execute a function in substrate-contr
 
 1. https://docs.azero.id/developers/deployments#metadata
 2. https://github.com/azero-id/resolver
+3. https://docs.alephzero.org/aleph-zero/build/writing-e2e-tests-with-ink-wrapper

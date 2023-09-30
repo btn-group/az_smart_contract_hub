@@ -33,7 +33,9 @@ impl From<LangError> for AZSmartContractHubError {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum AZGroupsError {
     ContractCall(LangError),
+    GroupDisabled,
     InkEnvError(String),
+    NotAMember,
     NotFound(String),
     Unauthorised,
     UnprocessableEntity(String),
