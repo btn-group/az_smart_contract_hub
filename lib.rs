@@ -321,6 +321,7 @@ mod az_smart_contract_hub {
         };
 
         const MOCK_AZERO_ID: &str = "OnionKnight";
+        const MOCK_AZERO_ID_TWO: &str = "Robert Ford";
         const MOCK_ABI_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/tmuurccd5a7lcvin6ae9.json";
         const MOCK_CONTRACT_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/vsvsvavdvavav.json";
         const MOCK_WASM_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/ffbrgnteyjytntehthw34hhhwhwhwnq343.json";
@@ -486,7 +487,7 @@ mod az_smart_contract_hub {
                     None,
                 )
                 .unwrap();
-            // == when called by non-caller
+            // == when called by account that is not the original caller
             set_caller::<DefaultEnvironment>(accounts.charlie);
             // == * it raises an error
             result = az_smart_contract_hub.update(
@@ -500,6 +501,42 @@ mod az_smart_contract_hub {
                 None,
             );
             assert_eq!(result, Err(AZSmartContractHubError::Unauthorised));
+            // == when called by account that is the original caller
+            set_caller::<DefaultEnvironment>(accounts.bob);
+            result = az_smart_contract_hub.update(
+                0,
+                false,
+                MOCK_AZERO_ID_TWO.to_string(),
+                Some(412),
+                Some(MOCK_AUDIT_URL.to_string()),
+                Some(MOCK_PROJECT_NAME.to_string()),
+                Some(MOCK_PROJECT_WEBSITE.to_string()),
+                Some(MOCK_GITHUB.to_string()),
+            );
+            let result_unwrapped = result.unwrap();
+            // == * it updates the enabled status
+            assert_eq!(result_unwrapped.enabled, false);
+            // == * it updates the azero id
+            assert_eq!(
+                result_unwrapped.azero_id_domain,
+                MOCK_AZERO_ID_TWO.to_string()
+            );
+            // == * it updates the group id
+            assert_eq!(result_unwrapped.group_id, Some(412));
+            // == * it updates the audit url
+            assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
+            // == * it updates the project name
+            assert_eq!(
+                result_unwrapped.project_name,
+                Some(MOCK_PROJECT_NAME.to_string())
+            );
+            // == * it updates the project website
+            assert_eq!(
+                result_unwrapped.project_website,
+                Some(MOCK_PROJECT_WEBSITE.to_string())
+            );
+            // == * it updates the github
+            assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
         }
     }
 }
