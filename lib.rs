@@ -121,13 +121,11 @@ mod az_smart_contract_hub {
 
         #[ink(message)]
         pub fn show(&self, id: u32) -> Result<SmartContract, AZSmartContractHubError> {
-            if let Some(smart_contract) = self.smart_contracts.get(id) {
-                Ok(smart_contract)
-            } else {
-                Err(AZSmartContractHubError::NotFound(
+            self.smart_contracts
+                .get(id)
+                .ok_or(AZSmartContractHubError::NotFound(
                     "SmartContract".to_string(),
                 ))
-            }
         }
 
         // === HANDLES ===
