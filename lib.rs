@@ -65,11 +65,6 @@ mod az_smart_contract_hub {
     }
 
     #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
-    struct GroupUser {
-        role: u8,
-    }
-
-    #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
     #[cfg_attr(
         feature = "std",
         derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
