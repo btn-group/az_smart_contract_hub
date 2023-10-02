@@ -11,6 +11,9 @@ mod az_smart_contract_hub {
     use ink::prelude::string::{String, ToString};
     use ink::storage::Mapping;
 
+    // === TYPES ===
+    type Result<T> = core::result::Result<T, AZSmartContractHubError>;
+
     // === ENUMS ===
     #[derive(scale::Decode, scale::Encode, Debug, Clone, PartialEq)]
     pub enum Role {
@@ -116,7 +119,7 @@ mod az_smart_contract_hub {
         }
 
         #[ink(message)]
-        pub fn show(&self, id: u32) -> Result<SmartContract, AZSmartContractHubError> {
+        pub fn show(&self, id: u32) -> Result<SmartContract> {
             self.smart_contracts
                 .get(id)
                 .ok_or(AZSmartContractHubError::NotFound(
@@ -143,7 +146,7 @@ mod az_smart_contract_hub {
             project_name: Option<String>,
             project_website: Option<String>,
             github: Option<String>,
-        ) -> Result<SmartContract, AZSmartContractHubError> {
+        ) -> Result<SmartContract> {
             if self.smart_contracts_count == u32::MAX {
                 return Err(AZSmartContractHubError::UnprocessableEntity(
                     "Smart contract limit reached".to_string(),
@@ -211,7 +214,7 @@ mod az_smart_contract_hub {
             project_name: Option<String>,
             project_website: Option<String>,
             github: Option<String>,
-        ) -> Result<SmartContract, AZSmartContractHubError> {
+        ) -> Result<SmartContract> {
             let mut smart_contract: SmartContract = self.show(id)?;
             let caller: AccountId = Self::env().caller();
             if caller != smart_contract.caller {
@@ -253,7 +256,7 @@ mod az_smart_contract_hub {
 
         // Can't write integration tests as azero.id has not made their contracts public.
         // For testing always return the caller
-        fn address_by_domain(&self, domain: String) -> Result<AccountId, AZSmartContractHubError> {
+        fn address_by_domain(&self, domain: String) -> Result<AccountId> {
             match cfg!(test) {
                 true => Ok(self.env().caller()),
                 false => {
@@ -283,11 +286,7 @@ mod az_smart_contract_hub {
 
         // I can write integration tests for this but I'm going to test non member responses manually.
         // For tests always return Role::Member.
-        fn validate_membership(
-            &self,
-            group_id: u32,
-            account: AccountId,
-        ) -> Result<Role, AZSmartContractHubError> {
+        fn validate_membership(&self, group_id: u32, account: AccountId) -> Result<Role> {
             match cfg!(test) {
                 true => Ok(Role::Member),
                 false => {
