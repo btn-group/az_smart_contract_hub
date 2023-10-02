@@ -5,13 +5,20 @@ mod validations;
 
 #[ink::contract]
 mod az_smart_contract_hub {
-    use crate::errors::{AZGroupsError, AZSmartContractHubError};
-    use crate::validations::validate_presence_of;
-    use ink::env::call::{build_call, ExecutionInput, Selector};
-    use ink::prelude::string::{String, ToString};
-    use ink::storage::Mapping;
+    use crate::{
+        errors::{AZGroupsError, AZSmartContractHubError},
+        validations::validate_presence_of,
+    };
+    use ink::{
+        codegen::EmitEvent,
+        env::call::{build_call, ExecutionInput, Selector},
+        prelude::string::{String, ToString},
+        reflect::ContractEventBase,
+        storage::Mapping,
+    };
 
     // === TYPES ===
+    type Event = <AZSmartContractHub as ContractEventBase>::Type;
     type Result<T> = core::result::Result<T, AZSmartContractHubError>;
 
     // === ENUMS ===
@@ -183,21 +190,24 @@ mod az_smart_contract_hub {
             self.smart_contracts_count += 1;
 
             // emit event
-            self.env().emit_event(Create {
-                id: smart_contract.id,
-                smart_contract_address,
-                environment,
-                caller,
-                azero_id_domain,
-                abi_url: abi_url_formatted,
-                contract_url,
-                wasm_url,
-                audit_url,
-                group_id,
-                project_name,
-                project_website,
-                github,
-            });
+            Self::emit_event(
+                self.env(),
+                Event::Create(Create {
+                    id: smart_contract.id,
+                    smart_contract_address,
+                    environment,
+                    caller,
+                    azero_id_domain,
+                    abi_url: abi_url_formatted,
+                    contract_url,
+                    wasm_url,
+                    audit_url,
+                    group_id,
+                    project_name,
+                    project_website,
+                    github,
+                }),
+            );
 
             Ok(smart_contract)
         }
@@ -240,16 +250,19 @@ mod az_smart_contract_hub {
                 .insert(smart_contract.id, &smart_contract);
 
             // emit event
-            self.env().emit_event(Update {
-                id: smart_contract.id,
-                enabled: smart_contract.enabled,
-                azero_id_domain,
-                group_id,
-                project_name,
-                project_website,
-                github,
-                audit_url,
-            });
+            Self::emit_event(
+                self.env(),
+                Event::Update(Update {
+                    id: smart_contract.id,
+                    enabled: smart_contract.enabled,
+                    azero_id_domain,
+                    group_id,
+                    project_name,
+                    project_website,
+                    github,
+                    audit_url,
+                }),
+            );
 
             Ok(smart_contract)
         }
@@ -278,6 +291,10 @@ mod az_smart_contract_hub {
                     }
                 }
             }
+        }
+
+        fn emit_event<EE: EmitEvent<Self>>(emitter: EE, event: Event) {
+            emitter.emit_event(event);
         }
 
         fn format_url(&self, url: String) -> String {
