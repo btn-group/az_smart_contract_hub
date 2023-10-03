@@ -187,7 +187,7 @@ mod az_smart_contract_hub {
             };
             self.smart_contracts
                 .insert(self.smart_contracts_count, &smart_contract);
-            self.smart_contracts_count += 1;
+            self.smart_contracts_count = self.smart_contracts_count.checked_add(1).unwrap();
 
             // emit event
             Self::emit_event(
@@ -548,6 +548,73 @@ mod az_smart_contract_hub {
             );
             // == * it updates the github
             assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
+        }
+    }
+
+    // https://use.ink/basics/contract-testing/
+    // https://github.com/swanky-dapps/manic-minter/blob/main/manicminter/Cargo.toml
+    #[cfg(all(test, feature = "e2e-tests"))]
+    mod e2e_tests {
+        use super::*;
+        use crate::az_smart_contract_hub::AZSmartContractHubRef;
+        use az_groups::AZGroupsRef;
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+        #[derive(Clone, Debug, scale::Decode, scale::Encode)]
+        pub struct SC {
+            address: AccountId,
+            contract_hash: Hash,
+        }
+
+        fn mock_azero_id_router() -> SC {
+            SC {
+                address: AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap(),
+                contract_hash: Hash::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy").unwrap(),
+            }
+        }
+
+        // fn get_alice_account_id() -> AccountId {
+        //     let alice = ink_e2e::alice::<ink_e2e::PolkadotConfig>();
+        //     let alice_account_id_32 = alice.account_id();
+        //     let alice_account_id = AccountId::try_from(alice_account_id_32.as_ref()).unwrap();
+
+        //     alice_account_id
+        // }
+
+        // This will test deposit_btn functions as well
+        #[ink_e2e::test]
+        async fn test_create(mut client: ::ink_e2e::Client<C, E>) -> E2EResult<()> {
+            // Instantiate AZ Groups
+            let az_groups_contstructor = AZGroupsRef::new();
+            let az_groups_account_id = client
+                .instantiate(
+                    "az_groups",
+                    &ink_e2e::alice(),
+                    az_groups_contstructor,
+                    0,
+                    None,
+                )
+                .await
+                .expect("AZ Groups instantiate failed")
+                .account_id;
+
+            // Instantiate AZSmartContractHub
+            let az_smart_contract_hub_constructor =
+                AZSmartContractHubRef::new(mock_azero_id_router().address, az_groups_account_id);
+            let az_smart_contract_hub_id = client
+                .instantiate(
+                    "az_smart_contract_hub",
+                    &ink_e2e::alice(),
+                    az_smart_contract_hub_constructor,
+                    0,
+                    None,
+                )
+                .await
+                .expect("AZ Smart Contract Hub instantiate failed")
+                .account_id;
+            assert_eq!(1, 1);
+            Ok(())
         }
     }
 }

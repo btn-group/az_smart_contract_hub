@@ -1,6 +1,8 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 mod errors;
+
+pub use self::az_groups::AZGroupsRef;
 
 #[ink::contract]
 mod az_groups {
@@ -268,7 +270,7 @@ mod az_groups {
             self.group_users.insert((group.id, user), &group_user);
 
             // Increase groups_total
-            self.groups_total += 1;
+            self.groups_total = self.groups_total.checked_add(1).unwrap();
 
             // emit event
             self.env().emit_event(Create {

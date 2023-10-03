@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# set -eux
+set -eu
 
-cargo contract build --manifest-path az_groups/Cargo.toml --release
-cargo contract build --manifest-path az_smart_contract_hub/Cargo.toml --release
+cargo +stable contract build --manifest-path az_groups/Cargo.toml --release
+cargo +stable contract build --release
