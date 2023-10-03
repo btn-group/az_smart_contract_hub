@@ -33,13 +33,7 @@ export CONTRACTS_NODE="/Users/myname/.cargo/bin/substrate-contracts-node"
 cargo test --features e2e-tests
 ```
 
-#### Why swanky node?
-
-Could not get this to work with substrate-contracts-node:
-
-```
-thread 'az_profit_distributor::e2e_tests::test_withdraw' panicked at 'We should find a port before the reader ends', /Users/xxxxx/.cargo/registry/src/github.com-1ecc6299db9ec823/ink_e2e-4.2.1/src/node_proc.rs:192:10
-```
+#### Why not ink-wrapper?
 
 Could not get [ink-wrapper](https://docs.alephzero.org/aleph-zero/build/writing-e2e-tests-with-ink-wrapper) to work:
 
