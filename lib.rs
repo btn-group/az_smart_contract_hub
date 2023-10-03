@@ -279,11 +279,11 @@ mod az_smart_contract_hub {
             match cfg!(test) {
                 true => Ok(self.env().caller()),
                 false => {
-                    if domain == MOCK_VALID_AZERO_ID.to_string() {
+                    if domain == *MOCK_VALID_AZERO_ID {
                         Ok(self.env().caller())
-                    } else if domain == MOCK_INVALID_AZERO_ID.to_string() {
+                    } else if domain == *MOCK_INVALID_AZERO_ID {
                         Ok(self.env().account_id())
-                    } else if domain == MOCK_ABSENT_AZERO_ID.to_string() {
+                    } else if domain == *MOCK_ABSENT_AZERO_ID {
                         Err(AZSmartContractHubError::NotFound("Domain".to_string()))
                     } else {
                         const GET_ADDRESS_SELECTOR: [u8; 4] = ink::selector_bytes!("get_address");
