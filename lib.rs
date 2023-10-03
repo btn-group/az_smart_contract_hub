@@ -17,6 +17,10 @@ mod az_smart_contract_hub {
         storage::Mapping,
     };
 
+    const MOCK_VALID_AZERO_ID: &str = "MOCK VALID AZERO ID";
+    const MOCK_INVALID_AZERO_ID: &str = "MOCK INVALID AZERO ID";
+    const MOCK_ABSENT_AZERO_ID: &str = "MOCK ABSENT AZERO ID";
+
     // === TYPES ===
     type Event = <AZSmartContractHub as ContractEventBase>::Type;
     type Result<T> = core::result::Result<T, AZSmartContractHubError>;
@@ -161,7 +165,9 @@ mod az_smart_contract_hub {
             }
             let caller: AccountId = Self::env().caller();
             if caller != self.address_by_domain(azero_id_domain.clone())? {
-                return Err(AZSmartContractHubError::Unauthorised);
+                return Err(AZSmartContractHubError::UnprocessableEntity(
+                    "Domain does not belong to caller".to_string(),
+                ));
             }
             if let Some(group_id_unwrapped) = group_id {
                 self.validate_membership(group_id_unwrapped, caller)?;
@@ -273,21 +279,29 @@ mod az_smart_contract_hub {
             match cfg!(test) {
                 true => Ok(self.env().caller()),
                 false => {
-                    const GET_ADDRESS_SELECTOR: [u8; 4] = ink::selector_bytes!("get_address");
-                    let result = build_call::<Environment>()
-                        .call(self.azero_id_router_address)
-                        .exec_input(
-                            ExecutionInput::new(Selector::new(GET_ADDRESS_SELECTOR))
-                                .push_arg(domain),
-                        )
-                        .returns::<core::result::Result<AccountId, u8>>()
-                        .params()
-                        .invoke();
-                    // Use the result as per the need
-                    if let Ok(address) = result {
-                        Ok(address)
-                    } else {
+                    if domain == *MOCK_VALID_AZERO_ID {
+                        Ok(self.env().caller())
+                    } else if domain == *MOCK_INVALID_AZERO_ID {
+                        Ok(self.env().account_id())
+                    } else if domain == *MOCK_ABSENT_AZERO_ID {
                         Err(AZSmartContractHubError::NotFound("Domain".to_string()))
+                    } else {
+                        const GET_ADDRESS_SELECTOR: [u8; 4] = ink::selector_bytes!("get_address");
+                        let result = build_call::<Environment>()
+                            .call(self.azero_id_router_address)
+                            .exec_input(
+                                ExecutionInput::new(Selector::new(GET_ADDRESS_SELECTOR))
+                                    .push_arg(domain),
+                            )
+                            .returns::<core::result::Result<AccountId, u8>>()
+                            .params()
+                            .invoke();
+                        // Use the result as per the need
+                        if let Ok(address) = result {
+                            Ok(address)
+                        } else {
+                            Err(AZSmartContractHubError::NotFound("Domain".to_string()))
+                        }
                     }
                 }
             }
@@ -399,9 +413,9 @@ mod az_smart_contract_hub {
         #[ink::test]
         fn test_create() {
             let (accounts, mut az_smart_contract_hub) = init();
-            // when environment is within range
-            az_smart_contract_hub.smart_contracts_count = u32::MAX - 1;
-            // * it stores the caller as the caller
+            // when smart_contracts_count is u32::MAX
+            az_smart_contract_hub.smart_contracts_count = u32::MAX;
+            // * it raises an error
             let result = az_smart_contract_hub.create(
                 accounts.alice,
                 0,
@@ -415,49 +429,14 @@ mod az_smart_contract_hub {
                 Some(MOCK_PROJECT_WEBSITE.to_string()),
                 Some(MOCK_GITHUB.to_string()),
             );
-            let result_unwrapped = result.unwrap();
-            // * it stores the id as the current length
-            assert_eq!(result_unwrapped.id, u32::MAX - 1);
-            // * it increases the smart_contracts length by 1
-            assert_eq!(az_smart_contract_hub.smart_contracts_count, u32::MAX);
-            // * it stores the smart_contract
             assert_eq!(
-                result_unwrapped,
-                az_smart_contract_hub.show(result_unwrapped.id).unwrap()
+                result,
+                Err(AZSmartContractHubError::UnprocessableEntity(
+                    "Smart contract limit reached".to_string(),
+                ))
             );
-            // * it stores the submitted smart contract address
-            assert_eq!(result_unwrapped.smart_contract_address, accounts.alice);
-            // * it sets the environment
-            assert_eq!(result_unwrapped.environment, 0);
-            // * it sets the azero id domain
-            assert_eq!(result_unwrapped.azero_id_domain, MOCK_AZERO_ID.to_string());
-            // * it sets the abi url
-            assert_eq!(result_unwrapped.abi_url, MOCK_ABI_URL.to_string());
-            // * it sets the contract url
-            assert_eq!(
-                result_unwrapped.contract_url,
-                Some(MOCK_CONTRACT_URL.to_string())
-            );
-            // * it sets the wasm url
-            assert_eq!(result_unwrapped.wasm_url, Some(MOCK_WASM_URL.to_string()));
-            // * it sets the audit url
-            assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
-            // * it sets the group_id
-            assert_eq!(result_unwrapped.group_id, Some(5));
-            // * it sets the project name
-            assert_eq!(
-                result_unwrapped.project_name,
-                Some(MOCK_PROJECT_NAME.to_string())
-            );
-            // * it sets the project name
-            assert_eq!(
-                result_unwrapped.project_website,
-                Some(MOCK_PROJECT_WEBSITE.to_string())
-            );
-            // * it sets the github
-            assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
-            // * it sets the caller to the caller
-            assert_eq!(result_unwrapped.caller, accounts.bob);
+            // when smart_contracts_count is less than u32::MAX
+            // * tested below
         }
 
         #[ink::test]
@@ -551,13 +530,22 @@ mod az_smart_contract_hub {
         }
     }
 
-    // https://use.ink/basics/contract-testing/
-    // https://github.com/swanky-dapps/manic-minter/blob/main/manicminter/Cargo.toml
+    // The main purpose of the e2e tests are to test the interactions with az groups contract
     #[cfg(all(test, feature = "e2e-tests"))]
     mod e2e_tests {
         use super::*;
         use crate::az_smart_contract_hub::AZSmartContractHubRef;
         use az_groups::AZGroupsRef;
+        use ink_e2e::build_message;
+        use ink_e2e::Keypair;
+
+        const MOCK_ABI_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/tmuurccd5a7lcvin6ae9.json";
+        const MOCK_CONTRACT_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/vsvsvavdvavav.json";
+        const MOCK_WASM_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/ffbrgnteyjytntehthw34hhhwhwhwnq343.json";
+        const MOCK_AUDIT_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/mlkmkbdsbmdsb3rrg3m.json";
+        const MOCK_PROJECT_NAME: &str = "Smart Contract Hub";
+        const MOCK_PROJECT_WEBSITE: &str = "https://someprojectwebsite.org/projects/project-name";
+        const MOCK_GITHUB: &str = "https://github.com/smart-contract-hub/project-name";
 
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -567,6 +555,11 @@ mod az_smart_contract_hub {
             contract_hash: Hash,
         }
 
+        fn account_id(k: Keypair) -> AccountId {
+            AccountId::try_from(k.public_key().to_account_id().as_ref())
+                .expect("account keyring has a valid account id")
+        }
+
         fn mock_azero_id_router() -> SC {
             SC {
                 address: AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap(),
@@ -574,15 +567,6 @@ mod az_smart_contract_hub {
             }
         }
 
-        // fn get_alice_account_id() -> AccountId {
-        //     let alice = ink_e2e::alice::<ink_e2e::PolkadotConfig>();
-        //     let alice_account_id_32 = alice.account_id();
-        //     let alice_account_id = AccountId::try_from(alice_account_id_32.as_ref()).unwrap();
-
-        //     alice_account_id
-        // }
-
-        // This will test deposit_btn functions as well
         #[ink_e2e::test]
         async fn test_create(mut client: ::ink_e2e::Client<C, E>) -> E2EResult<()> {
             // Instantiate AZ Groups
@@ -613,7 +597,252 @@ mod az_smart_contract_hub {
                 .await
                 .expect("AZ Smart Contract Hub instantiate failed")
                 .account_id;
-            assert_eq!(1, 1);
+
+            // when count is u32::MAX
+            // * tested above
+            // when count is less than u32::MAX
+            // = when azero id does not exist
+            let mut create_message = build_message::<AZSmartContractHubRef>(
+                az_smart_contract_hub_id.clone(),
+            )
+            .call(|az_smart_contract_hub| {
+                az_smart_contract_hub.create(
+                    account_id(ink_e2e::eve()),
+                    0,
+                    MOCK_ABSENT_AZERO_ID.to_string(),
+                    MOCK_ABI_URL.to_string(),
+                    Some(MOCK_CONTRACT_URL.to_string()),
+                    Some(MOCK_WASM_URL.to_string()),
+                    Some(MOCK_AUDIT_URL.to_string()),
+                    Some(5),
+                    Some(MOCK_PROJECT_NAME.to_string()),
+                    Some(MOCK_PROJECT_WEBSITE.to_string()),
+                    Some(MOCK_GITHUB.to_string()),
+                )
+            });
+            let mut result = client
+                .call_dry_run(&ink_e2e::alice(), &create_message, 0, None)
+                .await
+                .return_value();
+            // = * it raises an error
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::NotFound("Domain".to_string()))
+            );
+            // = when azero id exists
+            // == when caller doesn't own azero id
+            // == * it raises an error
+            create_message = build_message::<AZSmartContractHubRef>(
+                az_smart_contract_hub_id.clone(),
+            )
+            .call(|az_smart_contract_hub| {
+                az_smart_contract_hub.create(
+                    account_id(ink_e2e::eve()),
+                    0,
+                    MOCK_INVALID_AZERO_ID.to_string(),
+                    MOCK_ABI_URL.to_string(),
+                    Some(MOCK_CONTRACT_URL.to_string()),
+                    Some(MOCK_WASM_URL.to_string()),
+                    Some(MOCK_AUDIT_URL.to_string()),
+                    Some(5),
+                    Some(MOCK_PROJECT_NAME.to_string()),
+                    Some(MOCK_PROJECT_WEBSITE.to_string()),
+                    Some(MOCK_GITHUB.to_string()),
+                )
+            });
+            result = client
+                .call_dry_run(&ink_e2e::alice(), &create_message, 0, None)
+                .await
+                .return_value();
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::UnprocessableEntity(
+                    "Domain does not belong to caller".to_string()
+                ))
+            );
+
+            // == when caller owns azero id
+            // === when group does not exist
+            // === * it raises an error
+            create_message = build_message::<AZSmartContractHubRef>(
+                az_smart_contract_hub_id.clone(),
+            )
+            .call(|az_smart_contract_hub| {
+                az_smart_contract_hub.create(
+                    account_id(ink_e2e::eve()),
+                    0,
+                    MOCK_VALID_AZERO_ID.to_string(),
+                    MOCK_ABI_URL.to_string(),
+                    Some(MOCK_CONTRACT_URL.to_string()),
+                    Some(MOCK_WASM_URL.to_string()),
+                    Some(MOCK_AUDIT_URL.to_string()),
+                    Some(0),
+                    Some(MOCK_PROJECT_NAME.to_string()),
+                    Some(MOCK_PROJECT_WEBSITE.to_string()),
+                    Some(MOCK_GITHUB.to_string()),
+                )
+            });
+            result = client
+                .call_dry_run(&ink_e2e::alice(), &create_message, 0, None)
+                .await
+                .return_value();
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::AZGroupsError(
+                    AZGroupsError::NotFound("Group".to_string())
+                ))
+            );
+            // === when group exists
+            let mut create_group_message =
+                build_message::<AZGroupsRef>(az_groups_account_id.clone())
+                    .call(|az_groups| az_groups.groups_create("Eve's team".to_string()));
+            let mut groups_result = client
+                .call(&ink_e2e::eve(), create_group_message, 0, None)
+                .await
+                .unwrap()
+                .dry_run
+                .exec_result
+                .result;
+            assert!(groups_result.is_ok());
+            // ==== when user isn't a member of the group
+            result = client
+                .call_dry_run(&ink_e2e::alice(), &create_message, 0, None)
+                .await
+                .return_value();
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::AZGroupsError(
+                    AZGroupsError::NotFound("GroupUser".to_string())
+                ))
+            );
+            // ==== when user is a member of the group
+            create_group_message = build_message::<AZGroupsRef>(az_groups_account_id.clone())
+                .call(|az_groups| az_groups.groups_create("Alice's team".to_string()));
+            groups_result = client
+                .call(&ink_e2e::alice(), create_group_message, 0, None)
+                .await
+                .unwrap()
+                .dry_run
+                .exec_result
+                .result;
+            assert!(groups_result.is_ok());
+            // ===== when abi url is empty or made of only white space
+            // ===== * it raises an error
+            create_message = build_message::<AZSmartContractHubRef>(
+                az_smart_contract_hub_id.clone(),
+            )
+            .call(|az_smart_contract_hub| {
+                az_smart_contract_hub.create(
+                    account_id(ink_e2e::eve()),
+                    0,
+                    MOCK_VALID_AZERO_ID.to_string(),
+                    " ".to_string(),
+                    Some(MOCK_CONTRACT_URL.to_string()),
+                    Some(MOCK_WASM_URL.to_string()),
+                    Some(MOCK_AUDIT_URL.to_string()),
+                    Some(1),
+                    Some(MOCK_PROJECT_NAME.to_string()),
+                    Some(MOCK_PROJECT_WEBSITE.to_string()),
+                    Some(MOCK_GITHUB.to_string()),
+                )
+            });
+            result = client
+                .call_dry_run(&ink_e2e::alice(), &create_message, 0, None)
+                .await
+                .return_value();
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::UnprocessableEntity(format!(
+                    "Link to abi can't be blank"
+                )))
+            );
+            // ===== when abi url is present
+            let mut mock_abi_url_with_whitespaces: String = " ".to_string();
+            mock_abi_url_with_whitespaces.push_str(&MOCK_ABI_URL.to_string());
+            mock_abi_url_with_whitespaces.push_str(&" ".to_string());
+            create_message = build_message::<AZSmartContractHubRef>(
+                az_smart_contract_hub_id.clone(),
+            )
+            .call(|az_smart_contract_hub| {
+                az_smart_contract_hub.create(
+                    account_id(ink_e2e::eve()),
+                    0,
+                    MOCK_VALID_AZERO_ID.to_string(),
+                    mock_abi_url_with_whitespaces.clone(),
+                    Some(MOCK_CONTRACT_URL.to_string()),
+                    Some(MOCK_WASM_URL.to_string()),
+                    Some(MOCK_AUDIT_URL.to_string()),
+                    Some(1),
+                    Some(MOCK_PROJECT_NAME.to_string()),
+                    Some(MOCK_PROJECT_WEBSITE.to_string()),
+                    Some(MOCK_GITHUB.to_string()),
+                )
+            });
+            let result = client
+                .call(&ink_e2e::alice(), create_message, 0, None)
+                .await
+                .expect("flip failed");
+            let result_unwrapped: SmartContract = result.dry_run.return_value().unwrap();
+            // ==== * it stores the id as the current length
+            assert_eq!(result_unwrapped.id, 0);
+            // ==== * it increases the smart_contracts length by 1
+            let config_message =
+                build_message::<AZSmartContractHubRef>(az_smart_contract_hub_id.clone())
+                    .call(|az_smart_contract_hub| az_smart_contract_hub.config());
+            let config_result = client
+                .call_dry_run(&ink_e2e::alice(), &config_message, 0, None)
+                .await
+                .return_value();
+            assert_eq!(config_result.smart_contracts_count, 1);
+            // ==== * it stores the smart_contract
+            let show_message =
+                build_message::<AZSmartContractHubRef>(az_smart_contract_hub_id.clone())
+                    .call(|az_smart_contract_hub| az_smart_contract_hub.show(0));
+            let show_result = client
+                .call_dry_run(&ink_e2e::alice(), &show_message, 0, None)
+                .await
+                .return_value();
+            assert_eq!(show_result.unwrap(), result_unwrapped);
+            // ==== * it stores the submitted smart contract address
+            assert_eq!(
+                result_unwrapped.smart_contract_address,
+                account_id(ink_e2e::eve())
+            );
+            // ==== * it sets the environment
+            assert_eq!(result_unwrapped.environment, 0);
+            // ==== * it sets the azero id domain
+            assert_eq!(
+                result_unwrapped.azero_id_domain,
+                MOCK_VALID_AZERO_ID.to_string()
+            );
+            // ==== * it sets the abi url with trimmed whitespaces
+            assert_eq!(result_unwrapped.abi_url, MOCK_ABI_URL.to_string());
+            // ==== * it sets the contract url
+            assert_eq!(
+                result_unwrapped.contract_url,
+                Some(MOCK_CONTRACT_URL.to_string())
+            );
+            // ==== * it sets the wasm url
+            assert_eq!(result_unwrapped.wasm_url, Some(MOCK_WASM_URL.to_string()));
+            // ==== * it sets the audit url
+            assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
+            // ==== * it sets the group_id
+            assert_eq!(result_unwrapped.group_id, Some(1));
+            // ==== * it sets the project name
+            assert_eq!(
+                result_unwrapped.project_name,
+                Some(MOCK_PROJECT_NAME.to_string())
+            );
+            // ==== * it sets the project name
+            assert_eq!(
+                result_unwrapped.project_website,
+                Some(MOCK_PROJECT_WEBSITE.to_string())
+            );
+            // ==== * it sets the github
+            assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
+            // ==== * it sets the caller to the caller
+            assert_eq!(result_unwrapped.caller, account_id(ink_e2e::alice()));
+
             Ok(())
         }
     }

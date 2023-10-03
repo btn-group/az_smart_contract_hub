@@ -70,3 +70,4 @@ substrate-contracts-node --dev
 - https://github.com/azero-id/resolver
 - https://docs.alephzero.org/aleph-zero/build/writing-e2e-tests-with-ink-wrapper
 - https://github.com/paritytech/ink-examples/tree/61f69a77b3e32fe18c1f144a2863d25471778bee/multi-contract-caller
+- https://docs.rs/ink_e2e/4.3.0/ink_e2e/index.html
