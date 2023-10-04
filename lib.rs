@@ -71,8 +71,10 @@ mod az_smart_contract_hub {
     #[derive(Debug, Clone, scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Config {
+        admin: AccountId,
         az_groups_address: AccountId,
         azero_id_router_address: AccountId,
+        fee: Balance,
         smart_contracts_count: u32,
     }
 
@@ -101,8 +103,10 @@ mod az_smart_contract_hub {
     // === CONTRACT ===
     #[ink(storage)]
     pub struct AZSmartContractHub {
+        admin: AccountId,
         az_groups_address: AccountId,
         azero_id_router_address: AccountId,
+        fee: Balance,
         smart_contracts: Mapping<u32, SmartContract>,
         smart_contracts_count: u32,
     }
@@ -110,8 +114,10 @@ mod az_smart_contract_hub {
         #[ink(constructor)]
         pub fn new(azero_id_router_address: AccountId, az_groups_address: AccountId) -> Self {
             Self {
+                admin: Self::env().caller(),
                 az_groups_address,
                 azero_id_router_address,
+                fee: 1_000_000_000_000,
                 smart_contracts: Mapping::default(),
                 smart_contracts_count: 0,
             }
@@ -121,8 +127,10 @@ mod az_smart_contract_hub {
         #[ink(message)]
         pub fn config(&self) -> Config {
             Config {
+                admin: self.admin,
                 az_groups_address: self.az_groups_address,
                 azero_id_router_address: self.azero_id_router_address,
+                fee: self.fee,
                 smart_contracts_count: self.smart_contracts_count,
             }
         }
@@ -224,9 +232,7 @@ mod az_smart_contract_hub {
         ) -> Result<SmartContract> {
             let mut smart_contract: SmartContract = self.show(id)?;
             let caller: AccountId = Self::env().caller();
-            if caller != smart_contract.caller {
-                return Err(AZSmartContractHubError::Unauthorised);
-            }
+            Self::authorise(smart_contract.caller, caller)?;
             self.validate_ownership_of_azero_id(azero_id.clone(), caller)?;
             if let Some(group_id_unwrapped) = group_id {
                 self.validate_membership(group_id_unwrapped, caller)?;
@@ -258,6 +264,23 @@ mod az_smart_contract_hub {
             );
 
             Ok(smart_contract)
+        }
+
+        #[ink(message)]
+        pub fn update_fee(&mut self, fee: Balance) -> Result<Balance> {
+            Self::authorise(self.admin, Self::env().caller())?;
+
+            self.fee = fee;
+
+            Ok(self.fee)
+        }
+
+        fn authorise(allowed: AccountId, received: AccountId) -> Result<()> {
+            if allowed != received {
+                return Err(AZSmartContractHubError::Unauthorised);
+            }
+
+            Ok(())
         }
 
         // 1. For unit-testing always return the caller.
@@ -540,6 +563,21 @@ mod az_smart_contract_hub {
             );
             // == * it updates the github
             assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
+        }
+
+        #[ink::test]
+        fn test_update_fee() {
+            let (accounts, mut az_smart_contract_hub) = init();
+            // when called by non admin
+            set_caller::<DefaultEnvironment>(accounts.django);
+            // * it raises an error
+            let result = az_smart_contract_hub.update_fee(5);
+            assert_eq!(result, Err(AZSmartContractHubError::Unauthorised));
+            // when called by the admin
+            set_caller::<DefaultEnvironment>(accounts.bob);
+            // * it updates the fee
+            az_smart_contract_hub.update_fee(5).unwrap();
+            assert_eq!(az_smart_contract_hub.fee, 5)
         }
     }
 
