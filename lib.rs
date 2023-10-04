@@ -269,6 +269,7 @@ mod az_smart_contract_hub {
         #[ink(message)]
         pub fn update_fee(&mut self, fee: Balance) -> Result<Balance> {
             Self::authorise(self.admin, Self::env().caller())?;
+
             self.fee = fee;
 
             Ok(self.fee)
