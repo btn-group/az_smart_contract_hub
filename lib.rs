@@ -19,7 +19,6 @@ mod az_smart_contract_hub {
 
     const MOCK_VALID_AZERO_ID: &str = "MOCK VALID AZERO ID";
     const MOCK_INVALID_AZERO_ID: &str = "MOCK INVALID AZERO ID";
-    const MOCK_ABSENT_AZERO_ID: &str = "MOCK ABSENT AZERO ID";
 
     // === TYPES ===
     type Event = <AZSmartContractHub as ContractEventBase>::Type;
@@ -279,12 +278,16 @@ mod az_smart_contract_hub {
             match cfg!(test) {
                 true => Ok(self.env().caller()),
                 false => {
-                    if domain == *MOCK_VALID_AZERO_ID {
-                        Ok(self.env().caller())
-                    } else if domain == *MOCK_INVALID_AZERO_ID {
-                        Ok(self.env().account_id())
-                    } else if domain == *MOCK_ABSENT_AZERO_ID {
-                        Err(AZSmartContractHubError::NotFound("Domain".to_string()))
+                    if self.azero_id_router_address
+                        == AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap()
+                    {
+                        if domain == *MOCK_VALID_AZERO_ID {
+                            Ok(self.env().caller())
+                        } else if domain == *MOCK_INVALID_AZERO_ID {
+                            Ok(self.env().account_id())
+                        } else {
+                            Err(AZSmartContractHubError::NotFound("Domain".to_string()))
+                        }
                     } else {
                         const GET_ADDRESS_SELECTOR: [u8; 4] = ink::selector_bytes!("get_address");
                         let result = build_call::<Environment>()
@@ -539,6 +542,8 @@ mod az_smart_contract_hub {
         use ink_e2e::build_message;
         use ink_e2e::Keypair;
 
+        // === CONSTANTS ===
+        const MOCK_ABSENT_AZERO_ID: &str = "MOCK ABSENT AZERO ID";
         const MOCK_ABI_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/tmuurccd5a7lcvin6ae9.json";
         const MOCK_CONTRACT_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/vsvsvavdvavav.json";
         const MOCK_WASM_URL: &str = "https://res.mockcdn.com/xasdf123/raw/upload/v1690808298/smart_contract_hub/ffbrgnteyjytntehthw34hhhwhwhwnq343.json";
@@ -547,8 +552,10 @@ mod az_smart_contract_hub {
         const MOCK_PROJECT_WEBSITE: &str = "https://someprojectwebsite.org/projects/project-name";
         const MOCK_GITHUB: &str = "https://github.com/smart-contract-hub/project-name";
 
+        // === TYPES ===
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+        // === HELPERS ===
         fn account_id(k: Keypair) -> AccountId {
             AccountId::try_from(k.public_key().to_account_id().as_ref())
                 .expect("account keyring has a valid account id")
@@ -558,6 +565,7 @@ mod az_smart_contract_hub {
             AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap()
         }
 
+        // === HANDLES ===
         #[ink_e2e::test]
         async fn test_create(mut client: ::ink_e2e::Client<C, E>) -> E2EResult<()> {
             // Instantiate AZ Groups
