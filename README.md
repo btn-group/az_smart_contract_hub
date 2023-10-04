@@ -116,16 +116,8 @@ substrate-contracts-node --dev
 
 ## References
 
-- https://github.com/btn-group/az_groups
-- https://substrate.stackexchange.com/questions/7881/error-loading-of-original-wasm-failed
-- https://substrate.stackexchange.com/questions/8625/trying-to-implement-u256-in-rust-ink-4-0
-- https://github.com/swanky-dapps/manic-minter
-- https://docs.astar.network/docs/build/wasm/from-zero-to-ink-hero/manic-minter/manic-contract/
-- https://docs.rs/primitive-types/latest/primitive_types/struct.U256.html#impl-ToString-for-U256
-- https://github.com/btn-group/profit-distributor-b/blob/master/src/contract.rs
-- https://learn.brushfam.io/docs/OpenBrush/smart-contracts/example/impls
-- https://docs.azero.id/developers/deployments#metadata
-- https://github.com/azero-id/resolver
-- https://docs.alephzero.org/aleph-zero/build/writing-e2e-tests-with-ink-wrapper
-- https://github.com/paritytech/ink-examples/tree/61f69a77b3e32fe18c1f144a2863d25471778bee/multi-contract-caller
-- https://docs.rs/ink_e2e/4.3.0/ink_e2e/index.html
+- [AZ Groups Github](https://github.com/btn-group/az_groups)
+- [AZERO.ID Metadata](https://docs.azero.id/developers/deployments#metadata)
+- [AZERO.ID Resolver](https://github.com/azero-id/resolver)
+- [INK Multi-Contract-Caller Example](https://github.com/paritytech/ink-examples/tree/61f69a77b3e32fe18c1f144a2863d25471778bee/multi-contract-caller)
+- [ink_e2e Docs](https://docs.rs/ink_e2e/4.3.0/ink_e2e/index.html)
