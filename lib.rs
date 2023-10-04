@@ -40,7 +40,7 @@ mod az_smart_contract_hub {
         id: u32,
         #[ink(topic)]
         smart_contract_address: AccountId,
-        environment: u8,
+        chain: u8,
         #[ink(topic)]
         caller: AccountId,
         azero_id: String,
@@ -84,7 +84,7 @@ mod az_smart_contract_hub {
     pub struct SmartContract {
         id: u32,
         smart_contract_address: AccountId,
-        environment: u8,
+        chain: u8,
         caller: AccountId,
         enabled: bool,
         azero_id: String,
@@ -137,15 +137,12 @@ mod az_smart_contract_hub {
         }
 
         // === HANDLES ===
-        // 0 == Production
-        // 1 == Testnet
-        // 2 == Smarknet
         #[allow(clippy::too_many_arguments)]
         #[ink(message)]
         pub fn create(
             &mut self,
             smart_contract_address: AccountId,
-            environment: u8,
+            chain: u8,
             azero_id: String,
             abi_url: String,
             contract_url: Option<String>,
@@ -172,7 +169,7 @@ mod az_smart_contract_hub {
             let smart_contract: SmartContract = SmartContract {
                 id: self.smart_contracts_count,
                 smart_contract_address,
-                environment,
+                chain,
                 caller: Self::env().caller(),
                 enabled: true,
                 azero_id: azero_id.clone(),
@@ -195,7 +192,7 @@ mod az_smart_contract_hub {
                 Event::Create(Create {
                     id: smart_contract.id,
                     smart_contract_address,
-                    environment,
+                    chain,
                     caller,
                     azero_id,
                     abi_url: abi_url_formatted,
@@ -820,8 +817,8 @@ mod az_smart_contract_hub {
                 result_unwrapped.smart_contract_address,
                 account_id(ink_e2e::eve())
             );
-            // ==== * it sets the environment
-            assert_eq!(result_unwrapped.environment, 0);
+            // ==== * it sets the chain
+            assert_eq!(result_unwrapped.chain, 0);
             // ==== * it sets the azero id domain
             assert_eq!(result_unwrapped.azero_id, MOCK_VALID_AZERO_ID.to_string());
             // ==== * it sets the abi url with trimmed whitespaces

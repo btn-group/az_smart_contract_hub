@@ -1,5 +1,69 @@
 # AZ Smart Contract Hub
 
+A smart contract that allows the decentralised sharing of smart contract info:
+```
+pub struct SmartContract {
+    id: u32,
+    smart_contract_address: AccountId,
+    chain: u8,
+    caller: AccountId,
+    enabled: bool,
+    azero_id: String,
+    abi_url: String,
+    contract_url: Option<String>,
+    wasm_url: Option<String>,
+    audit_url: Option<String>,
+    group_id: Option<u32>,
+    project_name: Option<String>,
+    project_website: Option<String>,
+    github: Option<String>,
+}
+```
+A use case is the easing of development and auditing by allowing users to easily access abis to use in Substrate Contracts UI, smart contracts and front end dapp development.
+
+### Rules & notes
+
+**Creating a smart contract record**:
+* Chain will be left as type u8 to account for new testnets that may appear. Production will be 0 and Testnet will be 1.
+* Caller must own an AZERO.ID and associate it with a record.
+* A link to the abi_url (metadata.json) must be provided. In an ideal world, the link would be directed at the location of the smart contract's metadata.json on a CDN.
+* If a group_id is provided, the caller must be a member of that group.
+* The smart contract record is enabled by default.
+```
+fn create(
+    &mut self,
+    smart_contract_address: AccountId,
+    chain: u8,
+    azero_id: String,
+    abi_url: String,
+    contract_url: Option<String>,
+    wasm_url: Option<String>,
+    audit_url: Option<String>,
+    group_id: Option<u32>,
+    project_name: Option<String>,
+    project_website: Option<String>,
+    github: Option<String>,
+) -> Result<SmartContract> {
+```
+**Updating a smart contract record**:
+* Can only update own smart contract records.
+* Caller must own an AZERO.ID and associate it with a record. This means that if a user relinquishes the original azero_id, they must associate a new one on update.
+* If a group_id is provided, the caller must be a member of that group.
+* Some fields are unable to be updated for security purposes. If some fields are incorrect and are unable to be changed, the user should disable the record and create a new one.
+```
+fn update(
+    &mut self,
+    id: u32,
+    enabled: bool,
+    azero_id: String,
+    group_id: Option<u32>,
+    audit_url: Option<String>,
+    project_name: Option<String>,
+    project_website: Option<String>,
+    github: Option<String>,
+) -> Result<SmartContract> {
+```
+
 ## Getting Started
 ### Prerequisites
 
@@ -59,6 +123,7 @@ substrate-contracts-node --dev
 
 ## References
 
+- https://github.com/btn-group/az_groups
 - https://substrate.stackexchange.com/questions/7881/error-loading-of-original-wasm-failed
 - https://substrate.stackexchange.com/questions/8625/trying-to-implement-u256-in-rust-ink-4-0
 - https://github.com/swanky-dapps/manic-minter
