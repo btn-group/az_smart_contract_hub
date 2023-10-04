@@ -29,6 +29,7 @@ A use case is the easing of development and auditing by allowing users to easily
 * A link to the abi_url (metadata.json) must be provided. In an ideal world, the link would be directed at the location of the smart contract's metadata.json on a CDN.
 * If a group_id is provided, the caller must be a member of that group.
 * The smart contract record is enabled by default.
+* There is a fee to create which is sent to the admin.
 ```
 fn create(
     &mut self,
@@ -84,6 +85,8 @@ cargo sort
 
 ## Testing
 
+A combination of unit tests and integration tests are present. Integration tests were written mainly to test interactions with the AZ Groups smart contract. Integration tests with the AZERO.ID router could not be written as that contract is private. Different scenarios that could happen while interacting with the AZERO.ID router are simulated with mock addresses and domains that can't exist in production.
+
 ### Run unit tests
 
 ```sh
@@ -96,16 +99,6 @@ cargo test
 export CONTRACTS_NODE="/Users/myname/.cargo/bin/substrate-contracts-node"
 cargo test --features e2e-tests
 ```
-
-#### Why not ink-wrapper?
-
-Could not get [ink-wrapper](https://docs.alephzero.org/aleph-zero/build/writing-e2e-tests-with-ink-wrapper) to work:
-
-```
-thread 'tests::it_works' panicked at 'Rpc(ClientError(Transport(Error when opening the TCP socket: Connection refused (os error 61))))'
-```
-
-Note that I am using MacOS.
 
 ## Deployment
 
