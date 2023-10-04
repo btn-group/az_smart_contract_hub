@@ -117,7 +117,7 @@ mod az_smart_contract_hub {
                 admin: Self::env().caller(),
                 az_groups_address,
                 azero_id_router_address,
-                fee: 1_000_000_000_000,
+                fee: 1_000,
                 smart_contracts: Mapping::default(),
                 smart_contracts_count: 0,
             }
@@ -146,7 +146,7 @@ mod az_smart_contract_hub {
 
         // === HANDLES ===
         #[allow(clippy::too_many_arguments)]
-        #[ink(message)]
+        #[ink(message, payable)]
         pub fn create(
             &mut self,
             smart_contract_address: AccountId,
@@ -173,6 +173,11 @@ mod az_smart_contract_hub {
             }
             let abi_url_formatted: String = self.format_url(abi_url);
             Self::validate_presence_of(&abi_url_formatted, "Link to abi")?;
+            if self.env().transferred_value() != self.fee {
+                return Err(AZSmartContractHubError::UnprocessableEntity(
+                    "Incorrect fee".to_string(),
+                ));
+            }
 
             let smart_contract: SmartContract = SmartContract {
                 id: self.smart_contracts_count,
@@ -193,6 +198,15 @@ mod az_smart_contract_hub {
             self.smart_contracts
                 .insert(self.smart_contracts_count, &smart_contract);
             self.smart_contracts_count = self.smart_contracts_count.checked_add(1).unwrap();
+
+            // Transfer fee to admin
+            if self.env().transfer(self.admin, self.fee).is_err() {
+                panic!(
+                    "requested transfer failed. this can be the case if the contract does not\
+                     have sufficient free funds or if the transfer would have brought the\
+                     contract's balance below minimum balance."
+                )
+            }
 
             // emit event
             Self::emit_event(
@@ -426,6 +440,9 @@ mod az_smart_contract_hub {
                 ))
             );
             // = when smart_contract exists
+            ink::env::test::set_value_transferred::<ink::env::DefaultEnvironment>(
+                az_smart_contract_hub.fee,
+            );
             let smart_contract: SmartContract = az_smart_contract_hub
                 .create(
                     accounts.alice,
@@ -501,6 +518,9 @@ mod az_smart_contract_hub {
             );
 
             // = when smart_contract exists
+            ink::env::test::set_value_transferred::<ink::env::DefaultEnvironment>(
+                az_smart_contract_hub.fee,
+            );
             az_smart_contract_hub
                 .create(
                     accounts.alice,
@@ -636,7 +656,7 @@ mod az_smart_contract_hub {
             let az_smart_contract_hub_id = client
                 .instantiate(
                     "az_smart_contract_hub",
-                    &ink_e2e::alice(),
+                    &ink_e2e::eve(),
                     az_smart_contract_hub_constructor,
                     0,
                     None,
@@ -825,14 +845,33 @@ mod az_smart_contract_hub {
                     Some(MOCK_GITHUB.to_string()),
                 )
             });
-            let result = client
-                .call(&ink_e2e::alice(), create_message, 0, None)
+            // ====== when transferred value does not equal fee
+            result = client
+                .call_dry_run(&ink_e2e::alice(), &create_message, 0, None)
                 .await
-                .expect("flip failed");
+                .return_value();
+            assert_eq!(
+                result,
+                Err(AZSmartContractHubError::UnprocessableEntity(format!(
+                    "Incorrect fee"
+                )))
+            );
+
+            // ====== when transferred value equals fee
+            let eve_balance: Balance = client.balance(account_id(ink_e2e::eve())).await.unwrap();
+            let result = client
+                .call(&ink_e2e::alice(), create_message, 1_000, None)
+                .await
+                .expect("Create failed");
             let result_unwrapped: SmartContract = result.dry_run.return_value().unwrap();
-            // ==== * it stores the id as the current length
+            // ====== * it sends the balance to the admin
+            let new_eve_balance: Balance =
+                client.balance(account_id(ink_e2e::eve())).await.unwrap();
+            assert_eq!(new_eve_balance, eve_balance + 1_000);
+
+            // ====== * it stores the id as the current length
             assert_eq!(result_unwrapped.id, 0);
-            // ==== * it increases the smart_contracts length by 1
+            // ====== * it increases the smart_contracts length by 1
             let config_message =
                 build_message::<AZSmartContractHubRef>(az_smart_contract_hub_id.clone())
                     .call(|az_smart_contract_hub| az_smart_contract_hub.config());
@@ -841,7 +880,7 @@ mod az_smart_contract_hub {
                 .await
                 .return_value();
             assert_eq!(config_result.smart_contracts_count, 1);
-            // ==== * it stores the smart_contract
+            // ====== * it stores the smart_contract
             let show_message =
                 build_message::<AZSmartContractHubRef>(az_smart_contract_hub_id.clone())
                     .call(|az_smart_contract_hub| az_smart_contract_hub.show(0));
@@ -850,41 +889,41 @@ mod az_smart_contract_hub {
                 .await
                 .return_value();
             assert_eq!(show_result.unwrap(), result_unwrapped);
-            // ==== * it stores the submitted smart contract address
+            // ====== * it stores the submitted smart contract address
             assert_eq!(
                 result_unwrapped.smart_contract_address,
                 account_id(ink_e2e::eve())
             );
-            // ==== * it sets the chain
+            // ====== * it sets the chain
             assert_eq!(result_unwrapped.chain, 0);
-            // ==== * it sets the azero id domain
+            // ====== * it sets the azero id domain
             assert_eq!(result_unwrapped.azero_id, MOCK_VALID_AZERO_ID.to_string());
-            // ==== * it sets the abi url with trimmed whitespaces
+            // ====== * it sets the abi url with trimmed whitespaces
             assert_eq!(result_unwrapped.abi_url, MOCK_ABI_URL.to_string());
-            // ==== * it sets the contract url
+            // ====== * it sets the contract url
             assert_eq!(
                 result_unwrapped.contract_url,
                 Some(MOCK_CONTRACT_URL.to_string())
             );
-            // ==== * it sets the wasm url
+            // ====== * it sets the wasm url
             assert_eq!(result_unwrapped.wasm_url, Some(MOCK_WASM_URL.to_string()));
-            // ==== * it sets the audit url
+            // ====== * it sets the audit url
             assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
-            // ==== * it sets the group_id
+            // ====== * it sets the group_id
             assert_eq!(result_unwrapped.group_id, Some(1));
-            // ==== * it sets the project name
+            // ====== * it sets the project name
             assert_eq!(
                 result_unwrapped.project_name,
                 Some(MOCK_PROJECT_NAME.to_string())
             );
-            // ==== * it sets the project name
+            // ====== * it sets the project name
             assert_eq!(
                 result_unwrapped.project_website,
                 Some(MOCK_PROJECT_WEBSITE.to_string())
             );
-            // ==== * it sets the github
+            // ====== * it sets the github
             assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
-            // ==== * it sets the caller to the caller
+            // ====== * it sets the caller to the caller
             assert_eq!(result_unwrapped.caller, account_id(ink_e2e::alice()));
 
             Ok(())
