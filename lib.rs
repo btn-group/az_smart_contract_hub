@@ -549,22 +549,13 @@ mod az_smart_contract_hub {
 
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-        #[derive(Clone, Debug, scale::Decode, scale::Encode)]
-        pub struct SC {
-            address: AccountId,
-            contract_hash: Hash,
-        }
-
         fn account_id(k: Keypair) -> AccountId {
             AccountId::try_from(k.public_key().to_account_id().as_ref())
                 .expect("account keyring has a valid account id")
         }
 
-        fn mock_azero_id_router() -> SC {
-            SC {
-                address: AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap(),
-                contract_hash: Hash::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy").unwrap(),
-            }
+        fn mock_azero_id_router_address() -> AccountId {
+            AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap()
         }
 
         #[ink_e2e::test]
@@ -585,7 +576,7 @@ mod az_smart_contract_hub {
 
             // Instantiate AZSmartContractHub
             let az_smart_contract_hub_constructor =
-                AZSmartContractHubRef::new(mock_azero_id_router().address, az_groups_account_id);
+                AZSmartContractHubRef::new(mock_azero_id_router_address(), az_groups_account_id);
             let az_smart_contract_hub_id = client
                 .instantiate(
                     "az_smart_contract_hub",
