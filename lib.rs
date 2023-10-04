@@ -1,18 +1,17 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 mod errors;
-mod validations;
 
 #[ink::contract]
 mod az_smart_contract_hub {
-    use crate::{
-        errors::{AZGroupsError, AZSmartContractHubError},
-        validations::validate_presence_of,
-    };
+    use crate::errors::{AZGroupsError, AZSmartContractHubError};
     use ink::{
         codegen::EmitEvent,
         env::call::{build_call, ExecutionInput, Selector},
-        prelude::string::{String, ToString},
+        prelude::{
+            format,
+            string::{String, ToString},
+        },
         reflect::ContractEventBase,
         storage::Mapping,
     };
@@ -44,7 +43,7 @@ mod az_smart_contract_hub {
         environment: u8,
         #[ink(topic)]
         caller: AccountId,
-        azero_id_domain: String,
+        azero_id: String,
         abi_url: String,
         contract_url: Option<String>,
         wasm_url: Option<String>,
@@ -60,7 +59,7 @@ mod az_smart_contract_hub {
         #[ink(topic)]
         id: u32,
         enabled: bool,
-        azero_id_domain: String,
+        azero_id: String,
         audit_url: Option<String>,
         group_id: Option<u32>,
         project_name: Option<String>,
@@ -88,7 +87,7 @@ mod az_smart_contract_hub {
         environment: u8,
         caller: AccountId,
         enabled: bool,
-        azero_id_domain: String,
+        azero_id: String,
         abi_url: String,
         contract_url: Option<String>,
         wasm_url: Option<String>,
@@ -147,7 +146,7 @@ mod az_smart_contract_hub {
             &mut self,
             smart_contract_address: AccountId,
             environment: u8,
-            azero_id_domain: String,
+            azero_id: String,
             abi_url: String,
             contract_url: Option<String>,
             wasm_url: Option<String>,
@@ -163,16 +162,12 @@ mod az_smart_contract_hub {
                 ));
             }
             let caller: AccountId = Self::env().caller();
-            if caller != self.address_by_domain(azero_id_domain.clone())? {
-                return Err(AZSmartContractHubError::UnprocessableEntity(
-                    "Domain does not belong to caller".to_string(),
-                ));
-            }
+            self.validate_ownership_of_azero_id(azero_id.clone(), caller)?;
             if let Some(group_id_unwrapped) = group_id {
                 self.validate_membership(group_id_unwrapped, caller)?;
             }
             let abi_url_formatted: String = self.format_url(abi_url);
-            validate_presence_of(&abi_url_formatted, "Link to abi")?;
+            Self::validate_presence_of(&abi_url_formatted, "Link to abi")?;
 
             let smart_contract: SmartContract = SmartContract {
                 id: self.smart_contracts_count,
@@ -180,7 +175,7 @@ mod az_smart_contract_hub {
                 environment,
                 caller: Self::env().caller(),
                 enabled: true,
-                azero_id_domain: azero_id_domain.clone(),
+                azero_id: azero_id.clone(),
                 group_id,
                 abi_url: abi_url_formatted.clone(),
                 contract_url: contract_url.clone(),
@@ -202,7 +197,7 @@ mod az_smart_contract_hub {
                     smart_contract_address,
                     environment,
                     caller,
-                    azero_id_domain,
+                    azero_id,
                     abi_url: abi_url_formatted,
                     contract_url,
                     wasm_url,
@@ -223,7 +218,7 @@ mod az_smart_contract_hub {
             &mut self,
             id: u32,
             enabled: bool,
-            azero_id_domain: String,
+            azero_id: String,
             group_id: Option<u32>,
             audit_url: Option<String>,
             project_name: Option<String>,
@@ -235,22 +230,18 @@ mod az_smart_contract_hub {
             if caller != smart_contract.caller {
                 return Err(AZSmartContractHubError::Unauthorised);
             }
-
-            smart_contract.enabled = enabled;
-            if smart_contract.azero_id_domain != azero_id_domain {
-                if caller != self.address_by_domain(azero_id_domain.clone())? {
-                    return Err(AZSmartContractHubError::Unauthorised);
-                }
-                smart_contract.azero_id_domain = azero_id_domain.clone()
-            };
+            self.validate_ownership_of_azero_id(azero_id.clone(), caller)?;
             if let Some(group_id_unwrapped) = group_id {
                 self.validate_membership(group_id_unwrapped, caller)?;
             };
+
+            smart_contract.enabled = enabled;
+            smart_contract.azero_id = azero_id.clone();
             smart_contract.group_id = group_id;
+            smart_contract.audit_url = audit_url.clone();
             smart_contract.project_name = project_name.clone();
             smart_contract.project_website = project_website.clone();
             smart_contract.github = github.clone();
-            smart_contract.audit_url = audit_url.clone();
             self.smart_contracts
                 .insert(smart_contract.id, &smart_contract);
 
@@ -260,7 +251,7 @@ mod az_smart_contract_hub {
                 Event::Update(Update {
                     id: smart_contract.id,
                     enabled: smart_contract.enabled,
-                    azero_id_domain,
+                    azero_id,
                     group_id,
                     project_name,
                     project_website,
@@ -272,9 +263,11 @@ mod az_smart_contract_hub {
             Ok(smart_contract)
         }
 
-        // Can't write integration tests as azero.id has not made their contracts public.
-        // For testing always return the caller
-        fn address_by_domain(&self, domain: String) -> Result<AccountId> {
+        // 1. For unit-testing always return the caller.
+        // 2. For e2e-testing, I can't write integration tests as the azero.id contract is private.
+        // Test different situations safely by returning results based on an azero_id_router_address that is impossible in production
+        // with azero.ids that are not allowed in production.
+        fn address_by_azero_id(&self, domain: String) -> Result<AccountId> {
             match cfg!(test) {
                 true => Ok(self.env().caller()),
                 false => {
@@ -318,8 +311,7 @@ mod az_smart_contract_hub {
             url.trim().to_string()
         }
 
-        // I can write integration tests for this but I'm going to test non member responses manually.
-        // For tests always return Role::Member.
+        // For unit-testing always return Ok.
         fn validate_membership(&self, group_id: u32, account: AccountId) -> Result<Role> {
             match cfg!(test) {
                 true => Ok(Role::Member),
@@ -337,6 +329,30 @@ mod az_smart_contract_hub {
                         .invoke()?)
                 }
             }
+        }
+
+        fn validate_ownership_of_azero_id(
+            &self,
+            azero_id: String,
+            caller: AccountId,
+        ) -> Result<()> {
+            if caller != self.address_by_azero_id(azero_id.clone())? {
+                return Err(AZSmartContractHubError::UnprocessableEntity(
+                    "Domain does not belong to caller".to_string(),
+                ));
+            }
+
+            Ok(())
+        }
+
+        fn validate_presence_of(string: &str, field_name: &str) -> Result<()> {
+            if string.is_empty() {
+                return Err(AZSmartContractHubError::UnprocessableEntity(format!(
+                    "{field_name} can't be blank"
+                )));
+            };
+
+            Ok(())
         }
     }
 
@@ -510,10 +526,7 @@ mod az_smart_contract_hub {
             // == * it updates the enabled status
             assert_eq!(result_unwrapped.enabled, false);
             // == * it updates the azero id
-            assert_eq!(
-                result_unwrapped.azero_id_domain,
-                MOCK_AZERO_ID_TWO.to_string()
-            );
+            assert_eq!(result_unwrapped.azero_id, MOCK_AZERO_ID_TWO.to_string());
             // == * it updates the group id
             assert_eq!(result_unwrapped.group_id, Some(412));
             // == * it updates the audit url
@@ -810,10 +823,7 @@ mod az_smart_contract_hub {
             // ==== * it sets the environment
             assert_eq!(result_unwrapped.environment, 0);
             // ==== * it sets the azero id domain
-            assert_eq!(
-                result_unwrapped.azero_id_domain,
-                MOCK_VALID_AZERO_ID.to_string()
-            );
+            assert_eq!(result_unwrapped.azero_id, MOCK_VALID_AZERO_ID.to_string());
             // ==== * it sets the abi url with trimmed whitespaces
             assert_eq!(result_unwrapped.abi_url, MOCK_ABI_URL.to_string());
             // ==== * it sets the contract url
