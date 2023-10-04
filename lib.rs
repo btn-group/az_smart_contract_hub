@@ -17,6 +17,7 @@ mod az_smart_contract_hub {
     };
 
     const MOCK_VALID_AZERO_ID: &str = "MOCK VALID AZERO ID";
+    const MOCK_VALID_AZERO_ID_TWO: &str = "MOCK VALID AZERO ID TWO";
     const MOCK_INVALID_AZERO_ID: &str = "MOCK INVALID AZERO ID";
 
     // === TYPES ===
@@ -238,10 +239,10 @@ mod az_smart_contract_hub {
             smart_contract.enabled = enabled;
             smart_contract.azero_id = azero_id.clone();
             smart_contract.group_id = group_id;
+            smart_contract.audit_url = audit_url.clone();
             smart_contract.project_name = project_name.clone();
             smart_contract.project_website = project_website.clone();
             smart_contract.github = github.clone();
-            smart_contract.audit_url = audit_url.clone();
             self.smart_contracts
                 .insert(smart_contract.id, &smart_contract);
 
@@ -272,7 +273,7 @@ mod az_smart_contract_hub {
                     if self.azero_id_router_address
                         == AccountId::try_from(*b"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx").unwrap()
                     {
-                        if domain == *MOCK_VALID_AZERO_ID {
+                        if domain == *MOCK_VALID_AZERO_ID || domain == *MOCK_VALID_AZERO_ID_TWO {
                             Ok(self.env().caller())
                         } else if domain == *MOCK_INVALID_AZERO_ID {
                             Ok(self.env().account_id())
@@ -455,93 +456,6 @@ mod az_smart_contract_hub {
             );
             // when smart_contracts_count is less than u32::MAX
             // * tested below
-        }
-
-        #[ink::test]
-        fn test_update() {
-            let (accounts, mut az_smart_contract_hub) = init();
-            // = when smart_contract doesn't exist
-            // = * it raises an error
-            let mut result = az_smart_contract_hub.update(
-                0,
-                false,
-                MOCK_AZERO_ID.to_string(),
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
-            assert_eq!(
-                result,
-                Err(AZSmartContractHubError::NotFound(
-                    "SmartContract".to_string()
-                ))
-            );
-
-            // = when smart_contract exists
-            az_smart_contract_hub
-                .create(
-                    accounts.alice,
-                    0,
-                    MOCK_AZERO_ID.to_string(),
-                    MOCK_ABI_URL.to_string(),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-                .unwrap();
-            // == when called by account that is not the original caller
-            set_caller::<DefaultEnvironment>(accounts.charlie);
-            // == * it raises an error
-            result = az_smart_contract_hub.update(
-                0,
-                false,
-                MOCK_AZERO_ID.to_string(),
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
-            assert_eq!(result, Err(AZSmartContractHubError::Unauthorised));
-            // == when called by account that is the original caller
-            set_caller::<DefaultEnvironment>(accounts.bob);
-            result = az_smart_contract_hub.update(
-                0,
-                false,
-                MOCK_AZERO_ID_TWO.to_string(),
-                Some(412),
-                Some(MOCK_AUDIT_URL.to_string()),
-                Some(MOCK_PROJECT_NAME.to_string()),
-                Some(MOCK_PROJECT_WEBSITE.to_string()),
-                Some(MOCK_GITHUB.to_string()),
-            );
-            let result_unwrapped = result.unwrap();
-            // == * it updates the enabled status
-            assert_eq!(result_unwrapped.enabled, false);
-            // == * it updates the azero id
-            assert_eq!(result_unwrapped.azero_id, MOCK_AZERO_ID_TWO.to_string());
-            // == * it updates the group id
-            assert_eq!(result_unwrapped.group_id, Some(412));
-            // == * it updates the audit url
-            assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
-            // == * it updates the project name
-            assert_eq!(
-                result_unwrapped.project_name,
-                Some(MOCK_PROJECT_NAME.to_string())
-            );
-            // == * it updates the project website
-            assert_eq!(
-                result_unwrapped.project_website,
-                Some(MOCK_PROJECT_WEBSITE.to_string())
-            );
-            // == * it updates the github
-            assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
         }
     }
 
@@ -793,9 +707,9 @@ mod az_smart_contract_hub {
                 .call(&ink_e2e::alice(), create_message, 0, None)
                 .await
                 .expect("flip failed");
-            let result_unwrapped: SmartContract = result.dry_run.return_value().unwrap();
+            let smart_contract: SmartContract = result.dry_run.return_value().unwrap();
             // ==== * it stores the id as the current length
-            assert_eq!(result_unwrapped.id, 0);
+            assert_eq!(smart_contract.id, 0);
             // ==== * it increases the smart_contracts length by 1
             let config_message =
                 build_message::<AZSmartContractHubRef>(az_smart_contract_hub_id.clone())
@@ -813,43 +727,43 @@ mod az_smart_contract_hub {
                 .call_dry_run(&ink_e2e::alice(), &show_message, 0, None)
                 .await
                 .return_value();
-            assert_eq!(show_result.unwrap(), result_unwrapped);
+            assert_eq!(show_result.unwrap(), smart_contract);
             // ==== * it stores the submitted smart contract address
             assert_eq!(
-                result_unwrapped.smart_contract_address,
+                smart_contract.smart_contract_address,
                 account_id(ink_e2e::eve())
             );
             // ==== * it sets the environment
-            assert_eq!(result_unwrapped.environment, 0);
+            assert_eq!(smart_contract.environment, 0);
             // ==== * it sets the azero id domain
-            assert_eq!(result_unwrapped.azero_id, MOCK_VALID_AZERO_ID.to_string());
+            assert_eq!(smart_contract.azero_id, MOCK_VALID_AZERO_ID.to_string());
             // ==== * it sets the abi url with trimmed whitespaces
-            assert_eq!(result_unwrapped.abi_url, MOCK_ABI_URL.to_string());
+            assert_eq!(smart_contract.abi_url, MOCK_ABI_URL.to_string());
             // ==== * it sets the contract url
             assert_eq!(
-                result_unwrapped.contract_url,
+                smart_contract.contract_url,
                 Some(MOCK_CONTRACT_URL.to_string())
             );
             // ==== * it sets the wasm url
-            assert_eq!(result_unwrapped.wasm_url, Some(MOCK_WASM_URL.to_string()));
+            assert_eq!(smart_contract.wasm_url, Some(MOCK_WASM_URL.to_string()));
             // ==== * it sets the audit url
-            assert_eq!(result_unwrapped.audit_url, Some(MOCK_AUDIT_URL.to_string()));
+            assert_eq!(smart_contract.audit_url, Some(MOCK_AUDIT_URL.to_string()));
             // ==== * it sets the group_id
-            assert_eq!(result_unwrapped.group_id, Some(1));
+            assert_eq!(smart_contract.group_id, Some(1));
             // ==== * it sets the project name
             assert_eq!(
-                result_unwrapped.project_name,
+                smart_contract.project_name,
                 Some(MOCK_PROJECT_NAME.to_string())
             );
             // ==== * it sets the project name
             assert_eq!(
-                result_unwrapped.project_website,
+                smart_contract.project_website,
                 Some(MOCK_PROJECT_WEBSITE.to_string())
             );
             // ==== * it sets the github
-            assert_eq!(result_unwrapped.github, Some(MOCK_GITHUB.to_string()));
+            assert_eq!(smart_contract.github, Some(MOCK_GITHUB.to_string()));
             // ==== * it sets the caller to the caller
-            assert_eq!(result_unwrapped.caller, account_id(ink_e2e::alice()));
+            assert_eq!(smart_contract.caller, account_id(ink_e2e::alice()));
 
             Ok(())
         }
