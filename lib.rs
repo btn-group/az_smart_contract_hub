@@ -8,19 +8,20 @@ mod az_smart_contract_hub {
     use ink::{
         codegen::EmitEvent,
         env::call::{build_call, ExecutionInput, Selector},
+        env::DefaultEnvironment,
         prelude::{
             format,
             string::{String, ToString},
         },
         reflect::ContractEventBase,
         storage::Mapping,
+        EnvAccess,
     };
 
     const MOCK_VALID_AZERO_ID: &str = "MOCK VALID AZERO ID";
     const MOCK_INVALID_AZERO_ID: &str = "MOCK INVALID AZERO ID";
 
     // === TYPES ===
-    type Event = <AZSmartContractHub as ContractEventBase>::Type;
     type Result<T> = core::result::Result<T, AZSmartContractHubError>;
 
     // === ENUMS ===
@@ -209,9 +210,11 @@ mod az_smart_contract_hub {
             }
 
             // emit event
-            Self::emit_event(
+            <EnvAccess<'_, DefaultEnvironment> as EmitEvent<AZSmartContractHub>>::emit_event::<
+                Create,
+            >(
                 self.env(),
-                Event::Create(Create {
+                Create {
                     id: smart_contract.id,
                     smart_contract_address,
                     chain,
@@ -225,7 +228,7 @@ mod az_smart_contract_hub {
                     project_name,
                     project_website,
                     github,
-                }),
+                },
             );
 
             Ok(smart_contract)
@@ -263,9 +266,11 @@ mod az_smart_contract_hub {
                 .insert(smart_contract.id, &smart_contract);
 
             // emit event
-            Self::emit_event(
+            <EnvAccess<'_, DefaultEnvironment> as EmitEvent<AZSmartContractHub>>::emit_event::<
+                Update,
+            >(
                 self.env(),
-                Event::Update(Update {
+                Update {
                     id: smart_contract.id,
                     enabled: smart_contract.enabled,
                     azero_id,
@@ -274,7 +279,7 @@ mod az_smart_contract_hub {
                     project_website,
                     github,
                     audit_url,
-                }),
+                },
             );
 
             Ok(smart_contract)
@@ -335,10 +340,6 @@ mod az_smart_contract_hub {
                     }
                 }
             }
-        }
-
-        fn emit_event<EE: EmitEvent<Self>>(emitter: EE, event: Event) {
-            emitter.emit_event(event);
         }
 
         fn format_url(&self, url: String) -> String {

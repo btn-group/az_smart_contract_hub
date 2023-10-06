@@ -96,7 +96,7 @@ cargo test
 ### Run integration tests
 
 ```sh
-export CONTRACTS_NODE="/Users/myname/.cargo/bin/substrate-contracts-node"
+# export CONTRACTS_NODE="/Users/myname/.cargo/bin/substrate-contracts-node"
 cargo test --features e2e-tests
 ```
 
